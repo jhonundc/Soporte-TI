@@ -1,26 +1,17 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/auth/jwt";
 import { executeQuery } from "@/lib/db";
+import { getSession } from "@/lib/auth/guards";
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth_token")?.value;
-
-    if (!token) {
+    const session = await getSession();
+    if (!session) {
       return NextResponse.json({ authenticated: false }, { status: 401 });
     }
 
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ authenticated: false }, { status: 401 });
-    }
-
-    // Query extra details from DB if needed, or return payload
     const userResult = await executeQuery(
       "SELECT IdUsuario, Usuario, Nombres, Activo FROM Usuarios WHERE IdUsuario = @Id",
-      { Id: payload.id }
+      { Id: session.id }
     );
     const user = userResult.recordset[0];
 
@@ -34,7 +25,7 @@ export async function GET() {
         id: user.IdUsuario,
         username: user.Usuario,
         name: user.Nombres,
-        role: payload.role || "",
+        role: session.role || "",
       },
     });
   } catch (error) {

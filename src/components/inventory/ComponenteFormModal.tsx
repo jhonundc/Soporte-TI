@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { useEffect } from "react";
 import QuickCreateMarcaModal from "./QuickCreateMarcaModal";
+import { notify } from "@/lib/feedback/toast";
 
 const componenteSchema = z.object({
   IdBienComponente: z.string().optional(),
@@ -124,9 +125,9 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
     },
   });
 
-  const selectedMarcaName = marcas?.find(
-    (m: any) => String(m.IdMarca) === String(selectedMarca)
-  )?.Marca || (typeof selectedMarca === "object" ? selectedMarca?.Marca : "");
+  const selectedMarcaName =
+    marcas?.find((m: { IdMarca: number; Marca: string }) => String(m.IdMarca) === String(selectedMarca))
+      ?.Marca || selectedMarca || "";
 
   const selectedBienName = bienes?.find(
     (b: any) => String(b.IdBien) === watch("IdBien")
@@ -251,9 +252,7 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
       onOpenChange(false);
       reset();
     },
-    onError: (error: any) => {
-      alert(error.message);
-    },
+    onError: (error) => notify.fromError(error),
   });
 
   const onSubmit = (data: ComponenteFormValues) => {
@@ -265,7 +264,7 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-slate-800">
+          <DialogTitle className="text-xl font-semibold">
             {readOnly ? "Detalle del componente del bien" : componente ? "Editar componente del bien" : "Registrar componente del bien"}
           </DialogTitle>
         </DialogHeader>
@@ -273,13 +272,13 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
           <input type="hidden" {...register("IdBienComponente")} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Bien *</label>
+              <label className="text-sm font-medium text-foreground">Bien *</label>
               <Select
                 value={watch("IdBien") || ""}
                 onValueChange={(val) => setValue("IdBien", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar bien">{selectedBienName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -290,16 +289,16 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
                   ))}
                 </SelectContent>
               </Select>
-              {errors.IdBien && <p className="text-xs text-red-500">{errors.IdBien.message}</p>}
+              {errors.IdBien && <p className="text-xs text-destructive">{errors.IdBien.message}</p>}
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Componente *</label>
+              <label className="text-sm font-medium text-foreground">Componente *</label>
               <Select
                 value={watch("IdComponente") || ""}
                 onValueChange={(val) => setValue("IdComponente", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar componente">{selectedComponenteName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -310,19 +309,19 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
                   ))}
                 </SelectContent>
               </Select>
-              {errors.IdComponente && <p className="text-xs text-red-500">{errors.IdComponente.message}</p>}
+              {errors.IdComponente && <p className="text-xs text-destructive">{errors.IdComponente.message}</p>}
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Marca</label>
+            <label className="text-sm font-medium text-foreground">Marca</label>
             <div className="flex items-center gap-2">
               <Select
                 value={watch("Marca") || ""}
                 onValueChange={(val) => setValue("Marca", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar marca">{selectedMarcaName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -339,20 +338,18 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Descripción / Modelo</label>
+              <label className="text-sm font-medium text-foreground">Descripción / Modelo</label>
               <Input
                 {...register("DescripcionModelo")}
                 placeholder="Ej. Inspiron 15, FX-8300"
-                className="border-slate-200"
                 readOnly={readOnly}
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Número de Serie</label>
+              <label className="text-sm font-medium text-foreground">Número de Serie</label>
               <Input
                 {...register("Serie")}
                 placeholder="Ej. SN123456"
-                className="border-slate-200"
                 readOnly={readOnly}
               />
             </div>
@@ -360,42 +357,38 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Código Patrimonial</label>
+              <label className="text-sm font-medium text-foreground">Código Patrimonial</label>
               <Input
                 {...register("CodigoPatrimonial")}
                 placeholder="Ej. CP-0001"
-                className="border-slate-200"
                 readOnly={readOnly}
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Cantidad *</label>
+              <label className="text-sm font-medium text-foreground">Cantidad *</label>
               <Input
                 type="number"
                 {...register("Cantidad")}
-                className="border-slate-200"
                 readOnly={readOnly}
               />
-              {errors.Cantidad && <p className="text-xs text-red-500">{errors.Cantidad.message}</p>}
+              {errors.Cantidad && <p className="text-xs text-destructive">{errors.Cantidad.message}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Procesador / Especificaciones</label>
+              <label className="text-sm font-medium text-foreground">Procesador / Especificaciones</label>
               <Input
                 {...register("ProcesadorEspecificaciones")}
                 placeholder="Ej. Intel i5, AMD Ryzen"
-                className="border-slate-200"
                 readOnly={readOnly}
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">RAM</label>
+              <label className="text-sm font-medium text-foreground">RAM</label>
               <Input
                 {...register("RAM")}
                 placeholder="Ej. 8GB, 16GB"
-                className="border-slate-200"
                 readOnly={readOnly}
               />
             </div>
@@ -403,20 +396,18 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Almacenamiento</label>
+              <label className="text-sm font-medium text-foreground">Almacenamiento</label>
               <Input
                 {...register("Almacenamiento")}
                 placeholder="Ej. 256GB SSD"
-                className="border-slate-200"
                 readOnly={readOnly}
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Sistema Operativo</label>
+              <label className="text-sm font-medium text-foreground">Sistema Operativo</label>
               <Input
                 {...register("SistemaOperativo")}
                 placeholder="Ej. Windows 10"
-                className="border-slate-200"
                 readOnly={readOnly}
               />
             </div>
@@ -424,13 +415,13 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Ubicación Física</label>
+              <label className="text-sm font-medium text-foreground">Ubicación Física</label>
               <Select
                 value={watch("UbicacionFisica") || ""}
                 onValueChange={(val) => setValue("UbicacionFisica", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar área">{selectedAreaName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -443,24 +434,23 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Usuario Asignado</label>
+              <label className="text-sm font-medium text-foreground">Usuario Asignado</label>
               <Input
                 {...register("UsuarioAsignado")}
                 placeholder="Ej. Juan Pérez"
-                className="border-slate-200"
                 readOnly={readOnly}
               />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Tipo Equipo</label>
+              <label className="text-sm font-medium text-foreground">Tipo Equipo</label>
               <Select
                 value={watch("TipoEquipo") || ""}
                 onValueChange={(val) => setValue("TipoEquipo", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar tipo">{selectedTipoName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -473,13 +463,13 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Estado del Equipo</label>
+              <label className="text-sm font-medium text-foreground">Estado del Equipo</label>
               <Select
                 value={watch("EstadoEquipo") || ""}
                 onValueChange={(val) => setValue("EstadoEquipo", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar estado">{selectedEstadoName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -494,11 +484,11 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Observación</label>
+            <label className="text-sm font-medium text-foreground">Observación</label>
             <Textarea
               {...register("Observacion")}
               placeholder="Notas adicionales"
-              className="border-slate-200 min-h-[60px]"
+              className="min-h-[60px]"
               readOnly={readOnly}
             />
           </div>
@@ -508,16 +498,11 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="border-slate-200 text-slate-700 hover:bg-slate-50"
             >
               {readOnly ? "Cerrar" : "Cancelar"}
             </Button>
             {!readOnly && (
-              <Button
-                type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={mutation.isPending}
-              >
+              <Button type="submit" disabled={mutation.isPending}>
                 {mutation.isPending ? "Guardando..." : componente ? "Actualizar" : "Guardar"}
               </Button>
             )}

@@ -1,7 +1,18 @@
 import type { NextConfig } from "next";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: ["mssql", "tedious", "bcrypt"],
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts"],
+  },
+  turbopack: {
+    // Evita que Turbopack use D:\Inventario_avance como raíz por el lockfile del padre
+    root: projectRoot,
+  },
   allowedDevOrigins: [
     'localhost',
     '.localhost',

@@ -1,13 +1,40 @@
 import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { adminSession, authSession, guardFailed } from "@/lib/auth/guards";
 
 // Dashboard estadísticas: totales por área, por mes y por día de soporte
 export async function GET(request: Request) {
   try {
     const [bienesResult, componentesResult, softwareResult, countsResult, areaResult, mesResult, diaResult] = await Promise.all([
+<<<<<<< HEAD
       executeQuery(`EXEC sp_ConsultaBien @Accion = @Accion`, { Accion: "T" }).catch(() => ({ recordset: [] })),
       executeQuery(`EXEC sp_ConsultaBienComponente @Accion = @Accion`, { Accion: "L" }).catch(() => ({ recordset: [] })),
       executeQuery(`SELECT IdSoftware FROM BienSoftware`).catch(() => ({ recordset: [] })),
+=======
+      executeQuery(`EXEC sp_ConsultaBien @Accion = @Accion`, { Accion: "L" }),
+      executeQuery(`EXEC sp_ConsultaBienComponente @Accion = @Accion`, { Accion: "L" }),
+      executeQuery(
+        `EXEC sp_ConsultaSoftware
+          @Accion = @Accion,
+          @IdSoftware = @IdSoftware,
+          @NombreSoftware = @NombreSoftware,
+          @TipoSoftware = @TipoSoftware,
+          @VersionSoftware = @VersionSoftware,
+          @ProveedorEntidad = @ProveedorEntidad,
+          @TipoLicencia = @TipoLicencia,
+          @EstadoLicencia = @EstadoLicencia`,
+        {
+          Accion: "L",
+          IdSoftware: null,
+          NombreSoftware: null,
+          TipoSoftware: null,
+          VersionSoftware: null,
+          ProveedorEntidad: null,
+          TipoLicencia: null,
+          EstadoLicencia: null,
+        }
+      ),
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
       executeQuery(`
         SELECT
           (SELECT COUNT(*) FROM BajasBienes) AS totalBajas,
@@ -48,8 +75,14 @@ export async function GET(request: Request) {
 
     const counts = countsResult.recordset?.[0] || {};
     const totalBienes = bienesResult.recordset?.length ?? 0;
-    const totalBienesActivos = bienesResult.recordset?.filter((row: any) => row.Activo === 1 || row.Activo === true).length ?? 0;
-    const totalBienesInactivos = totalBienes - totalBienesActivos;
+    const totalBienesOperativos =
+      bienesResult.recordset?.filter(
+        (row: { Activo?: number | boolean; Estado_EstadoBien?: string }) =>
+          row.Activo === 1 ||
+          row.Activo === true ||
+          String(row.Estado_EstadoBien || "").toLowerCase().includes("operativ")
+      ).length ?? 0;
+    const totalBienesInoperativos = totalBienes - totalBienesOperativos;
     const totalComponentes = componentesResult.recordset?.length ?? 0;
     const totalSoftware = softwareResult.recordset?.length ?? 0;
 
@@ -60,10 +93,17 @@ export async function GET(request: Request) {
     });
 
     // Formatear soporte por mes
+<<<<<<< HEAD
     const soportePorMes = mesResult.recordset?.map((row: any) => ({
       label: row.label,
       Fichas: row.Fichas
     })) || [];
+=======
+    const soportePorMes = mesResult.recordset.map((row: { label: string; Fichas: number }) => {
+      const [año, mes] = String(row.label).split("-").map(Number);
+      return { año: año || 0, mes: mes || 0, cantidad: row.Fichas ?? 0 };
+    });
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
 
     // Formatear soporte por día (ordenar cronológicamente para el gráfico)
     const soportePorDia = (diaResult.recordset || [])
@@ -76,8 +116,10 @@ export async function GET(request: Request) {
     return NextResponse.json({
       totales: {
         totalBienes,
-        totalBienesActivos,
-        totalBienesInactivos,
+        totalBienesOperativos,
+        totalBienesInoperativos,
+        totalBienesActivos: totalBienesOperativos,
+        totalBienesInactivos: totalBienesInoperativos,
         totalComponentes,
         totalSoftware,
         totalBajas: counts.totalBajas || 0,

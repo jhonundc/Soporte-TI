@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEffect } from "react";
+import { notify } from "@/lib/feedback/toast";
 
 const softwareSchema = z.object({
   TipoSoftware: z.string().min(1, "El tipo de software es obligatorio."),
@@ -186,9 +187,7 @@ export default function SoftwareFormModal({
       queryClient.invalidateQueries({ queryKey: ["software"] });
       onOpenChange(false);
     },
-    onError: (error: any) => {
-      alert(error.message);
-    },
+    onError: (error) => notify.fromError(error),
   });
 
   const onSubmit = (values: SoftwareFormValues) => {
@@ -200,7 +199,7 @@ export default function SoftwareFormModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-slate-800">
+          <DialogTitle className="text-xl font-semibold">
             {readOnly
               ? "Detalle del Software"
               : software
@@ -211,7 +210,7 @@ export default function SoftwareFormModal({
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Catálogo de software *</label>
+              <label className="text-sm font-medium text-foreground">Catálogo de software *</label>
               <Select 
                 value={watch("IdSoftwareCatalogo")} 
                 onValueChange={(value) => value !== null && setValue("IdSoftwareCatalogo", value)}
@@ -229,11 +228,11 @@ export default function SoftwareFormModal({
                 </SelectContent>
               </Select>
               {errors.IdSoftwareCatalogo && (
-                <p className="text-xs text-red-500">{errors.IdSoftwareCatalogo.message}</p>
+                <p className="text-xs text-destructive">{errors.IdSoftwareCatalogo.message}</p>
               )}
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Tipo de software *</label>
+              <label className="text-sm font-medium text-foreground">Tipo de software *</label>
               <Select 
                 value={watch("TipoSoftware")} 
                 onValueChange={(value) => value !== null && setValue("TipoSoftware", value)}
@@ -251,22 +250,22 @@ export default function SoftwareFormModal({
                 </SelectContent>
               </Select>
               {errors.TipoSoftware && (
-                <p className="text-xs text-red-500">{errors.TipoSoftware.message}</p>
+                <p className="text-xs text-destructive">{errors.TipoSoftware.message}</p>
               )}
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Versión *</label>
+              <label className="text-sm font-medium text-foreground">Versión *</label>
               <Input
                 {...register("VersionSoftware")}
                 placeholder="Ej. 2024"
                 readOnly={readOnly}
               />
               {errors.VersionSoftware && (
-                <p className="text-xs text-red-500">{errors.VersionSoftware.message}</p>
+                <p className="text-xs text-destructive">{errors.VersionSoftware.message}</p>
               )}
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Proveedor / Entidad *</label>
+              <label className="text-sm font-medium text-foreground">Proveedor / Entidad *</label>
               <Select
                 value={watch("ProveedorEntidad")}
                 onValueChange={(value) => value !== null && setValue("ProveedorEntidad", value)}
@@ -284,11 +283,11 @@ export default function SoftwareFormModal({
                 </SelectContent>
               </Select>
               {errors.ProveedorEntidad && (
-                <p className="text-xs text-red-500">{errors.ProveedorEntidad.message}</p>
+                <p className="text-xs text-destructive">{errors.ProveedorEntidad.message}</p>
               )}
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Tipo de licencia *</label>
+              <label className="text-sm font-medium text-foreground">Tipo de licencia *</label>
               <Select 
                 value={watch("TipoLicencia")} 
                 onValueChange={(value) => value !== null && setValue("TipoLicencia", value)}
@@ -306,11 +305,11 @@ export default function SoftwareFormModal({
                 </SelectContent>
               </Select>
               {errors.TipoLicencia && (
-                <p className="text-xs text-red-500">{errors.TipoLicencia.message}</p>
+                <p className="text-xs text-destructive">{errors.TipoLicencia.message}</p>
               )}
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Cantidad de licencias *</label>
+              <label className="text-sm font-medium text-foreground">Cantidad de licencias *</label>
               <Input
                 type="number"
                 {...register("CantidadLicencias")}
@@ -319,11 +318,11 @@ export default function SoftwareFormModal({
                 min={0}
               />
               {errors.CantidadLicencias && (
-                <p className="text-xs text-red-500">{errors.CantidadLicencias.message}</p>
+                <p className="text-xs text-destructive">{errors.CantidadLicencias.message}</p>
               )}
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Estado de licencia *</label>
+              <label className="text-sm font-medium text-foreground">Estado de licencia *</label>
               <Select 
                 value={watch("EstadoLicencia")} 
                 onValueChange={(value) => value !== null && setValue("EstadoLicencia", value)}
@@ -339,13 +338,13 @@ export default function SoftwareFormModal({
                 </SelectContent>
               </Select>
               {errors.EstadoLicencia && (
-                <p className="text-xs text-red-500">{errors.EstadoLicencia.message}</p>
+                <p className="text-xs text-destructive">{errors.EstadoLicencia.message}</p>
               )}
             </div>
             
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Fecha de caducidad</label>
+            <label className="text-sm font-medium text-foreground">Fecha de caducidad</label>
             <Input
               type="date"
               {...register("FechaCaducidad")}
@@ -354,7 +353,7 @@ export default function SoftwareFormModal({
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Equipos / asignación</label>
+            <label className="text-sm font-medium text-foreground">Equipos / asignación</label>
             <Select
               value={watch("EquiposUsuariosAsignados")}
               onValueChange={(value) => value !== null && setValue("EquiposUsuariosAsignados", value)}
@@ -374,7 +373,7 @@ export default function SoftwareFormModal({
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Uso / finalidad</label>
+            <label className="text-sm font-medium text-foreground">Uso / finalidad</label>
             <Textarea
               {...register("UsoFinalidad")}
               placeholder="Ej. Gestión administrativa"

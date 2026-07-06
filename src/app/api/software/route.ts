@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { executeQuery } from "@/lib/db";
-import { verifyToken } from "@/lib/auth/jwt";
+import { adminSession, authSession, guardFailed } from "@/lib/auth/guards";
 
 function parseNullableInt(value: any): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -43,6 +42,9 @@ function formatSoftwareRow(row: any) {
 }
 
 export async function GET(request: Request) {
+  const auth = await authSession();
+  if (guardFailed(auth)) return auth;
+
   try {
     const url = new URL(request.url);
     const idSoftware = parseNullableInt(url.searchParams.get("id"));
@@ -105,6 +107,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const session = await adminSession();
+  if (guardFailed(session)) return session;
+
   try {
     const data = await request.json();
 
@@ -125,16 +130,6 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-    }
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 
     const result = await executeQuery(
@@ -175,21 +170,14 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const session = await adminSession();
+  if (guardFailed(session)) return session;
+
   try {
     const data = await request.json();
     const idSoftware = parseNullableInt(data.IdSoftware);
     if (!idSoftware) {
       return NextResponse.json({ error: "IdSoftware es requerido." }, { status: 400 });
-    }
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 
     if (Object.keys(data).length === 2 && typeof data.Activo !== "undefined") {
@@ -247,21 +235,14 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const session = await adminSession();
+  if (guardFailed(session)) return session;
+
   try {
     const url = new URL(request.url);
     const idSoftware = parseNullableInt(url.searchParams.get("id"));
     if (!idSoftware) {
       return NextResponse.json({ error: "IdSoftware es requerido." }, { status: 400 });
-    }
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 
     await executeQuery(

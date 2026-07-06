@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -24,32 +25,15 @@ import {
 } from "@/components/ui/select";
 
 import { Edit, FileSpreadsheet, Plus, Search, Trash2, Power } from "lucide-react";
-
-// =========================
-// API FETCHERS
-// =========================
-
-const fetchUsuarios = async () => {
-  const res = await fetch("/api/usuarios");
-  if (!res.ok) throw new Error("Error al cargar usuarios");
-  return res.json();
-};
-
-const fetchRoles = async () => {
-  const res = await fetch("/api/roles");
-  if (!res.ok) throw new Error("Error al cargar roles");
-  return res.json();
-};
-
-const fetchSession = async () => {
-  const res = await fetch("/api/auth/session");
-  if (!res.ok) return { authenticated: false };
-  return res.json();
-};
-
-// =========================
-// PAGE COMPONENT
-// =========================
+import { notify } from "@/lib/feedback/toast";
+import { fetchSessionClient } from "@/lib/auth/session-client";
+import { DataTable } from "@/components/data-display/DataTable";
+import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
+import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { IconInput } from "@/components/forms/IconInput";
+import { queryKeys } from "@/lib/query-keys";
+import { usuariosService } from "@/services/usuarios.service";
 
 export default function UsuariosPage() {
   const queryClient = useQueryClient();
@@ -69,18 +53,18 @@ export default function UsuariosPage() {
 
   // QUERIES
   const { data: usuarios, isLoading } = useQuery({
-    queryKey: ["usuarios"],
-    queryFn: fetchUsuarios,
+    queryKey: queryKeys.usuarios.all(),
+    queryFn: usuariosService.list,
   });
 
   const { data: roles } = useQuery({
-    queryKey: ["roles"],
-    queryFn: fetchRoles,
+    queryKey: queryKeys.roles.all(),
+    queryFn: usuariosService.roles,
   });
 
   const { data: sessionData } = useQuery({
-    queryKey: ["session"],
-    queryFn: fetchSession,
+    queryKey: queryKeys.session(),
+    queryFn: fetchSessionClient,
   });
 
   const userRole = sessionData?.user?.role?.toLowerCase() || "";
@@ -91,26 +75,16 @@ export default function UsuariosPage() {
     mutationFn: async (data: any) => {
       const isEditing = !!editingUser;
       const bodyData = { ...data };
-      
+
       if (isEditing) {
         bodyData.IdUsuario = editingUser.IdUsuario;
         bodyData.Activo = data.Activo === true || data.Activo === "true";
+        return usuariosService.update(bodyData);
       }
-
-      const res = await fetch("/api/usuarios", {
-        method: isEditing ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyData),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Error al guardar el usuario");
-      }
-      return res.json();
+      return usuariosService.create(bodyData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.usuarios.all() });
       reset();
       setEditingUser(null);
       setOpen(false);
@@ -118,38 +92,24 @@ export default function UsuariosPage() {
   });
 
   const deleteUsuarioMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await fetch(`/api/usuarios?id=${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Error al eliminar usuario");
-      }
-      return res.json();
-    },
+    mutationFn: (id: number) => usuariosService.remove(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.usuarios.all() });
     },
   });
 
   const toggleStatusMutation = useMutation({
-    mutationFn: async (user: any) => {
-      const res = await fetch("/api/usuarios", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          IdUsuario: user.IdUsuario,
-          Usuario: user.Usuario,
-          Nombres: user.Nombres,
-          Cargo: user.Cargo,
-          IdRol: user.IdRol,
-          Activo: !user.Activo,
-        }),
-      });
-      if (!res.ok) throw new Error("Error al cambiar estado");
-      return res.json();
-    },
+    mutationFn: (user: any) =>
+      usuariosService.update({
+        IdUsuario: user.IdUsuario,
+        Usuario: user.Usuario,
+        Nombres: user.Nombres,
+        Cargo: user.Cargo,
+        IdRol: user.IdRol,
+        Activo: !user.Activo,
+      }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["usuarios"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.usuarios.all() });
     },
   });
 
@@ -184,7 +144,7 @@ export default function UsuariosPage() {
       try {
         await deleteUsuarioMutation.mutateAsync(id);
       } catch (error: any) {
-        alert(error.message);
+        notify.error(error.message);
       }
     }
   };
@@ -195,26 +155,26 @@ export default function UsuariosPage() {
       try {
         await toggleStatusMutation.mutateAsync(user);
       } catch (error: any) {
-        alert(error.message);
+        notify.error(error.message);
       }
     }
   };
 
   const onSubmit = async (data: any) => {
     if (!editingUser && !data.Clave) {
-      alert("La contraseña es requerida para usuarios nuevos.");
+      notify.warning("La contraseña es requerida para usuarios nuevos.");
       return;
     }
     try {
       await saveUsuarioMutation.mutateAsync(data);
     } catch (error: any) {
-      alert(error.message);
+      notify.error(error.message);
     }
   };
 
   const exportToExcel = async () => {
     if (!usuarios || usuarios.length === 0) {
-      alert("No hay usuarios para exportar");
+      notify.warning("No hay usuarios para exportar");
       return;
     }
     
@@ -260,135 +220,118 @@ export default function UsuariosPage() {
     );
   }, [usuarios, searchTerm]);
 
+  const columns = useMemo<ColumnDef<any>[]>(
+    () => [
+      {
+        accessorKey: "Usuario",
+        header: "Usuario",
+        cell: ({ getValue }) => (
+          <span className="font-medium text-foreground">{String(getValue() || "-")}</span>
+        ),
+      },
+      {
+        accessorKey: "Nombres",
+        header: "Nombres",
+        cell: ({ getValue }) => <span className="text-muted-foreground">{String(getValue() || "-")}</span>,
+      },
+      {
+        accessorKey: "Cargo",
+        header: "Cargo",
+        cell: ({ getValue }) => <span className="text-muted-foreground/80">{String(getValue() || "-")}</span>,
+      },
+      {
+        accessorKey: "NombreRol",
+        header: "Rol",
+        cell: ({ getValue }) => (
+          <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+            {String(getValue() || "-")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "Activo",
+        header: "Estado",
+        cell: ({ getValue }) => <StatusBadge active={getValue() as boolean} />,
+      },
+      {
+        id: "actions",
+        header: "Acciones",
+        cell: ({ row }) => {
+          const user = row.original;
+          return (
+            <TableRowActions>
+              <TableActionButton
+                actionVariant="warning"
+                title={user.Activo ? "Desactivar" : "Activar"}
+                aria-label={user.Activo ? "Desactivar usuario" : "Activar usuario"}
+                onClick={() => handleToggleStatus(user)}
+              >
+                <Power className="size-4" />
+              </TableActionButton>
+              <TableActionButton
+                actionVariant="primary"
+                title="Editar"
+                aria-label="Editar usuario"
+                onClick={() => handleEdit(user)}
+              >
+                <Edit className="size-4" />
+              </TableActionButton>
+              {isAdmin ? (
+                <TableActionButton
+                  actionVariant="destructive"
+                  title="Eliminar"
+                  aria-label="Eliminar usuario"
+                  onClick={() => handleDelete(user.IdUsuario)}
+                >
+                  <Trash2 className="size-4" />
+                </TableActionButton>
+              ) : null}
+            </TableRowActions>
+          );
+        },
+      },
+    ],
+    [isAdmin]
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Gestión de Usuarios</h1>
-          <p className="text-slate-500 text-sm">Crea, edita y administra los accesos al sistema.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={exportToExcel} className="gap-2">
-            <FileSpreadsheet className="w-4 h-4 text-green-600" />
-            Exportar
-          </Button>
-          <Button onClick={handleOpenNew} className="gap-2 bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4" />
-            Nuevo Usuario
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Gestión de Usuarios"
+        description="Crea, edita y administra los accesos al sistema."
+        actions={
+          <>
+            <Button variant="outline" onClick={exportToExcel} className="gap-2">
+              <FileSpreadsheet className="size-4 text-success" aria-hidden="true" />
+              Exportar
+            </Button>
+            <Button onClick={handleOpenNew} className="gap-2" size="lg">
+              <Plus className="h-4 w-4" />
+              Nuevo Usuario
+            </Button>
+          </>
+        }
+      />
 
-      <div className="bg-white/50 backdrop-blur-sm border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
-        {/* Barra de búsqueda */}
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
-          <div className="relative max-w-sm w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <Input
-              placeholder="Buscar por usuario, nombre, rol..."
-              className="pl-9 bg-slate-50 border-slate-200"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Tabla */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-4 font-semibold">Usuario</th>
-                <th className="px-6 py-4 font-semibold">Nombres</th>
-                <th className="px-6 py-4 font-semibold">Cargo</th>
-                <th className="px-6 py-4 font-semibold">Rol</th>
-                <th className="px-6 py-4 font-semibold">Estado</th>
-                <th className="px-6 py-4 font-semibold text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                      Cargando usuarios...
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredUsuarios.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-500">
-                    No se encontraron usuarios
-                  </td>
-                </tr>
-              ) : (
-                filteredUsuarios.map((user: any) => (
-                  <tr
-                    key={user.IdUsuario}
-                    className={`transition-colors hover:bg-slate-50/80 ${
-                      !user.Activo ? "bg-red-50/50 hover:bg-red-50" : ""
-                    }`}
-                  >
-                    <td className="px-6 py-4 font-medium text-slate-900">
-                      {user.Usuario}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">{user.Nombres}</td>
-                    <td className="px-6 py-4 text-slate-500">{user.Cargo || "-"}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {user.NombreRol}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          user.Activo
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {user.Activo ? "Activo" : "Inactivo"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleToggleStatus(user)}
-                          title={user.Activo ? "Desactivar" : "Activar"}
-                          className={`${user.Activo ? "text-amber-500 hover:text-amber-600 hover:bg-amber-50" : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"}`}
-                        >
-                          <Power className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(user)}
-                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(user.IdUsuario)}
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={filteredUsuarios}
+        isLoading={isLoading}
+        emptyMessage="No se encontraron usuarios"
+        loadingMessage="Cargando usuarios..."
+        getRowClassName={(row) =>
+          !row.original.Activo ? "text-muted-foreground opacity-75" : undefined
+        }
+        toolbar={
+          <IconInput
+            icon={Search}
+            placeholder="Buscar por usuario, nombre, rol..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            containerClassName="max-w-sm"
+          />
+        }
+      />
 
       {/* Modal Formulario */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -467,7 +410,7 @@ export default function UsuariosPage() {
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={saveUsuarioMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
+              <Button type="submit" disabled={saveUsuarioMutation.isPending}>
                 {saveUsuarioMutation.isPending ? "Guardando..." : "Guardar"}
               </Button>
             </DialogFooter>

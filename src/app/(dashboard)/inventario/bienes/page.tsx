@@ -1,45 +1,55 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  useReactTable,
-  getCoreRowModel,
-  flexRender,
-} from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
+<<<<<<< HEAD
 import { Plus, Edit, Trash2, Eye, Power, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import BienFormModal from "@/components/inventory/BienFormModal";
 import BienImportModal from "@/components/inventory/BienImportModal";
+=======
+import { Plus, Edit, Trash2, Eye, Power } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { BienFormModal } from "@/lib/lazy/inventory-modals";
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
 import { useState, useMemo } from "react";
-
-// Función para obtener los bienes
-const fetchBienes = async () => {
-  const res = await fetch("/api/bienes");
-  if (!res.ok) throw new Error("Error al cargar los bienes");
-  return res.json();
-};
-
-const fetchSession = async () => {
-  const res = await fetch("/api/auth/session");
-  if (!res.ok) return { user: { role: "" } };
-  return res.json();
-};
+import { getAreas, getCondiciones } from "@/app/actions/catalogs";
+import { notify } from "@/lib/feedback/toast";
+import { fetchSessionClient } from "@/lib/auth/session-client";
+import { queryKeys } from "@/lib/query-keys";
+import { bienesService } from "@/services/bienes.service";
+import { DataTable } from "@/components/data-display/DataTable";
+import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { FilterBar, FilterField } from "@/components/forms/FilterBar";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
 
 export default function BienesPage() {
   const queryClient = useQueryClient();
   const { data: bienes, isLoading, error } = useQuery({
-    queryKey: ["bienes"],
-    queryFn: fetchBienes,
+    queryKey: queryKeys.bienes.all(),
+    queryFn: bienesService.list,
   });
   const { data: sessionData } = useQuery({
-    queryKey: ["session"],
-    queryFn: fetchSession,
+    queryKey: queryKeys.session(),
+    queryFn: fetchSessionClient,
   });
+  const { data: areas } = useQuery({ queryKey: ["areas"], queryFn: () => getAreas() });
+  const { data: condiciones } = useQuery({ queryKey: ["condiciones"], queryFn: () => getCondiciones() });
   const isSupport = String(sessionData?.user?.role || "").toLowerCase().includes("soporte");
 
   const [searchCodigoInventario, setSearchCodigoInventario] = useState("");
   const [searchCodigoPatrimonial, setSearchCodigoPatrimonial] = useState("");
+  const [filterArea, setFilterArea] = useState("");
+  const [filterCondicion, setFilterCondicion] = useState("");
   const [visibleCount, setVisibleCount] = useState(9);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -47,48 +57,33 @@ export default function BienesPage() {
   const [editingBien, setEditingBien] = useState<any>(null);
   const [readOnlyMode, setReadOnlyMode] = useState(false);
 
+  const areaOptions = useMemo(
+    () =>
+      (areas ?? [])
+        .filter((area: { NombreArea?: string }) => area.NombreArea)
+        .map((area: { NombreArea: string }) => ({
+          value: area.NombreArea,
+          label: area.NombreArea,
+        })),
+    [areas]
+  );
+
   // Mutaciones para activar/desactivar y dar de baja
   const toggleActivoMutation = useMutation({
-    mutationFn: async (bien: any) => {
-      const res = await fetch("/api/bienes", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          IdBien: bien.IdBien,
-          Activo: !bien.Activo,
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Error al cambiar estado del bien");
-      }
-      return res.json();
-    },
+    mutationFn: (bien: any) =>
+      bienesService.toggleActivo(bien.IdBien, !bien.Activo),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bienes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bienes.all() });
     },
-    onError: (error: any) => {
-      alert(error.message);
-    }
+    onError: (error) => notify.fromError(error),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await fetch(`/api/bienes?id=${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Error al dar de baja el bien");
-      }
-      return res.json();
-    },
+    mutationFn: (id: number) => bienesService.remove(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bienes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bienes.all() });
     },
-    onError: (error: any) => {
-      alert(error.message);
-    }
+    onError: (error) => notify.fromError(error),
   });
 
   const handleToggleActivo = (bien: any) => {
@@ -126,10 +121,16 @@ export default function BienesPage() {
         !codigoInventarioTerm || codigoInventario.includes(codigoInventarioTerm);
       const matchesPatrimonial =
         !codigoPatrimonialTerm || codigoPatrimonial.includes(codigoPatrimonialTerm);
+      const matchesArea =
+        !filterArea ||
+        String(b.Area?.NombreArea || "").toLowerCase() === filterArea.toLowerCase();
+      const matchesCondicion =
+        !filterCondicion ||
+        String(b.Condicion?.Condicion || "").toLowerCase() === filterCondicion.toLowerCase();
 
-      return matchesInventario && matchesPatrimonial;
+      return matchesInventario && matchesPatrimonial && matchesArea && matchesCondicion;
     });
-  }, [bienes, searchCodigoInventario, searchCodigoPatrimonial]);
+  }, [bienes, searchCodigoInventario, searchCodigoPatrimonial, filterArea, filterCondicion]);
 
   // Bienes que se muestran actualmente (scroll infinito)
   const displayedBienes = useMemo(() => {
@@ -147,7 +148,7 @@ export default function BienesPage() {
   };
 
   // Definición de columnas (memorizadas)
-  const columns = useMemo(() => [
+  const columns = useMemo<ColumnDef<any>[]>(() => [
     {
       accessorKey: "CodigoInventario",
       header: "Cód. Inventario",
@@ -208,69 +209,60 @@ export default function BienesPage() {
       cell: (info: any) => {
         const bien = info.row.original;
         return (
-          <div className="flex items-center space-x-1">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-teal-600 hover:text-teal-700 hover:bg-teal-50" 
+          <TableRowActions>
+            <TableActionButton
+              actionVariant="default"
               title="Ver"
+              aria-label="Ver detalle"
               onClick={() => {
                 setEditingBien(bien);
                 setReadOnlyMode(true);
                 setModalOpen(true);
               }}
             >
-              <Eye className="h-4 w-4" />
-            </Button>
-            {!isSupport && (
+              <Eye className="size-4" />
+            </TableActionButton>
+            {!isSupport ? (
               <>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
+                <TableActionButton
+                  actionVariant="primary"
                   title="Editar"
+                  aria-label="Editar bien"
                   onClick={() => {
                     setEditingBien(bien);
                     setReadOnlyMode(false);
                     setModalOpen(true);
                   }}
                 >
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className={`h-8 w-8 ${bien.Activo ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' : 'text-slate-400 hover:text-slate-500 hover:bg-slate-100'}`} 
+                  <Edit className="size-4" />
+                </TableActionButton>
+                <TableActionButton
+                  actionVariant="warning"
                   title={bien.Activo ? "Desactivar" : "Activar"}
+                  aria-label={bien.Activo ? "Desactivar bien" : "Activar bien"}
                   onClick={() => handleToggleActivo(bien)}
                 >
-                  <Power className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" 
+                  <Power className="size-4" />
+                </TableActionButton>
+                <TableActionButton
+                  actionVariant="destructive"
                   title="Dar de baja (inactivar)"
+                  aria-label="Dar de baja"
                   onClick={() => handleDelete(bien.IdBien)}
                 >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                  <Trash2 className="size-4" />
+                </TableActionButton>
               </>
-            )}
-          </div>
+            ) : null}
+          </TableRowActions>
         );
       },
     },
   ], [isSupport]);
 
-  const table = useReactTable({
-    data: displayedBienes,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  });
-
   return (
     <div className="space-y-6">
+<<<<<<< HEAD
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Inventario de Bienes</h1>
@@ -287,11 +279,22 @@ export default function BienesPage() {
               <Upload className="mr-2 h-4 w-4" /> Importar Excel
             </Button>
             <Button
+=======
+      <PageHeader
+        title="Inventario de Bienes"
+        description="Gestión de equipos y bienes institucionales."
+        actions={
+          !isSupport ? (
+            <Button
+              size="lg"
+              className="gap-2"
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
               onClick={() => {
                 setEditingBien(null);
                 setReadOnlyMode(false);
                 setModalOpen(true);
               }}
+<<<<<<< HEAD
               className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-900/20 inline-flex items-center justify-center rounded-lg text-sm font-medium h-10 px-4 py-2 transition-all"
             >
               <Plus className="mr-2 h-4 w-4" /> Nuevo Bien
@@ -318,95 +321,115 @@ export default function BienesPage() {
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
           <label className="block text-xs font-medium text-slate-600">ID Inventario</label>
+=======
+            >
+              <Plus className="size-4" aria-hidden="true" /> Nuevo Bien
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {modalOpen ? (
+        <BienFormModal
+          bien={editingBien}
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          readOnly={readOnlyMode}
+        />
+      ) : null}
+
+      <FilterBar
+        fieldsClassName="lg:grid-cols-4"
+        activeCount={
+          Number(Boolean(searchCodigoInventario)) +
+          Number(Boolean(searchCodigoPatrimonial)) +
+          Number(Boolean(filterArea)) +
+          Number(Boolean(filterCondicion))
+        }
+        onClear={() => {
+          setSearchCodigoInventario("");
+          setSearchCodigoPatrimonial("");
+          setFilterArea("");
+          setFilterCondicion("");
+          setVisibleCount(9);
+        }}
+      >
+        <FilterField label="ID Inventario" htmlFor="search-inventario">
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
           <Input
+            id="search-inventario"
             placeholder="Buscar por código de inventario"
             value={searchCodigoInventario}
             onChange={handleSearchCodigoInventarioChange}
-            className="bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500"
           />
-        </div>
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-600">ID Patrimonial</label>
+        </FilterField>
+        <FilterField label="ID Patrimonial" htmlFor="search-patrimonial">
           <Input
+            id="search-patrimonial"
             placeholder="Buscar por código patrimonial"
             value={searchCodigoPatrimonial}
             onChange={handleSearchCodigoPatrimonialChange}
-            className="bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500"
           />
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {isLoading ? (
-          <div className="p-6 text-center text-slate-500">Cargando bienes...</div>
-        ) : error ? (
-          <div className="p-6 text-center text-red-500">Error al cargar los bienes. Verifica la conexión.</div>
-        ) : (
-          <div
-            onScroll={handleScroll}
-            className="overflow-x-auto max-h-[600px] overflow-y-auto relative"
+        </FilterField>
+        <FilterField label="Área" htmlFor="filter-area">
+          <SearchableSelect
+            id="filter-area"
+            value={filterArea}
+            onValueChange={(value) => {
+              setFilterArea(value);
+              setVisibleCount(9);
+            }}
+            options={areaOptions}
+            placeholder="Seleccione o busque área"
+            emptyMessage="No hay áreas que coincidan"
+          />
+        </FilterField>
+        <FilterField label="Condición" htmlFor="filter-condicion">
+          <Select
+            value={filterCondicion || null}
+            onValueChange={(value) => {
+              setFilterCondicion(value ?? "");
+              setVisibleCount(9);
+            }}
           >
-            <table className="w-full text-sm text-left text-slate-600 border-collapse">
-              <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="px-6 py-4 font-semibold whitespace-nowrap sticky top-0 bg-slate-50 z-10"
-                      >
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.length > 0 ? (
-                  table.getRowModel().rows.map((row) => (
-                    <tr 
-                      key={row.id} 
-                      className={`border-b border-slate-100 transition-colors hover:bg-slate-50/50 ${
-                        row.original.Activo ? "bg-white" : "bg-slate-50/40 text-slate-400 opacity-75"
-                      }`}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="px-6 py-4 whitespace-nowrap">
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={columns.length} className="px-6 py-4 text-center text-slate-500">
-                      No se encontraron bienes registrados.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+            <SelectTrigger id="filter-condicion" className="w-full">
+              <SelectValue placeholder="Seleccione condición" />
+            </SelectTrigger>
+            <SelectContent>
+              {condiciones?.map((condicion: { IdCondicion: number; Condicion: string }) => (
+                <SelectItem key={condicion.IdCondicion} value={condicion.Condicion}>
+                  {condicion.Condicion}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      </FilterBar>
 
-      {/* Info de Scroll Infinito */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-slate-500">
-          Mostrando {displayedBienes.length} de {filteredBienes.length} registros
-          {filteredBienes.length > displayedBienes.length && (
-            <span className="text-blue-600 font-medium ml-2 animate-pulse">
-              (Desplázate hacia abajo para ver más...)
-            </span>
-          )}
-        </div>
-      </div>
+      <DataTable
+        columns={columns}
+        data={displayedBienes}
+        isLoading={isLoading}
+        error={error as Error | null}
+        emptyMessage="No se encontraron bienes registrados."
+        loadingMessage="Cargando bienes..."
+        stickyHeader
+        scrollContainerClassName="max-h-[600px] overflow-y-auto"
+        onScroll={handleScroll}
+        getRowClassName={(row) =>
+          row.original.Activo ? undefined : "text-muted-foreground opacity-75"
+        }
+        footer={
+          <div className="text-sm text-muted-foreground">
+            Mostrando {displayedBienes.length} de {filteredBienes.length} registros
+            {filteredBienes.length > displayedBienes.length ? (
+              <span className="ml-2 animate-pulse font-medium text-primary">
+                (Desplázate hacia abajo para ver más...)
+              </span>
+            ) : null}
+          </div>
+        }
+      />
     </div>
   );
 }

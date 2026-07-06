@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import {
+  bajaCreateApiSchema,
+  bajaDeleteQuerySchema,
+  bajaUpdateApiSchema,
+  parseJsonBody,
+  parseSearchParams,
+} from "@/lib/validations";
 
 function parseNullableInt(value: any): number | null {
   if (value === null || value === undefined || value === "") return null;
   const parsed = typeof value === "number" ? value : parseInt(String(value), 10);
   return Number.isInteger(parsed) ? parsed : null;
-}
-
-function toNullableString(value: any): string | null {
-  if (value === null || value === undefined) return null;
-  const text = String(value).trim();
-  return text.length ? text : null;
 }
 
 async function enrichBajas(baseRows: any[]) {
@@ -99,15 +100,9 @@ export async function GET() {
 // Crear una nueva ficha de baja
 export async function POST(request: Request) {
   try {
-    const data = await request.json();
-    
-    // Validaciones básicas
-    if (!data.NumeroFichaBaja || !data.IdBien) {
-      return NextResponse.json(
-        { error: "El número de ficha y el bien son requeridos" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseJsonBody(bajaCreateApiSchema, request);
+    if ("error" in parsed) return parsed.error;
+    const data = parsed.data;
 
     await executeQuery(
       `EXEC sp_MantenimientoBajaBien
@@ -128,20 +123,20 @@ export async function POST(request: Request) {
          @IdUsuarioRegistro = @IdUsuarioRegistro`,
       {
         Accion: "R",
-        NumeroFichaBaja: toNullableString(data.NumeroFichaBaja),
-        UnidadOrganica: toNullableString(data.UnidadOrganica),
-        IdBien: parseNullableInt(data.IdBien),
-        Responsable: toNullableString(data.Responsable),
-        Dependencia: toNullableString(data.Dependencia),
-        Ambiente: toNullableString(data.Ambiente),
-        TipoBien: toNullableString(data.TipoBien),
-        IdCondicion: parseNullableInt(data.IdCondicion),
-        IdEstadoBien: parseNullableInt(data.IdEstadoBien),
-        Fundamentacion: toNullableString(data.Fundamentacion),
-        Recomendacion: toNullableString(data.Recomendacion),
-        CausalBaja: toNullableString(data.CausalBaja),
-        Observacion: toNullableString(data.Observacion),
-        IdUsuarioRegistro: parseNullableInt(data.IdUsuarioRegistro),
+        NumeroFichaBaja: data.NumeroFichaBaja,
+        UnidadOrganica: data.UnidadOrganica,
+        IdBien: data.IdBien,
+        Responsable: data.Responsable,
+        Dependencia: data.Dependencia,
+        Ambiente: data.Ambiente,
+        TipoBien: data.TipoBien,
+        IdCondicion: data.IdCondicion,
+        IdEstadoBien: data.IdEstadoBien,
+        Fundamentacion: data.Fundamentacion,
+        Recomendacion: data.Recomendacion,
+        CausalBaja: data.CausalBaja,
+        Observacion: data.Observacion,
+        IdUsuarioRegistro: data.IdUsuarioRegistro,
       }
     );
 
@@ -162,12 +157,9 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const data = await request.json();
-    const id = parseNullableInt(data.IdBaja);
-
-    if (!id) {
-      return NextResponse.json({ error: "IdBaja es requerido" }, { status: 400 });
-    }
+    const parsed = await parseJsonBody(bajaUpdateApiSchema, request);
+    if ("error" in parsed) return parsed.error;
+    const data = parsed.data;
 
     await executeQuery(
       `EXEC sp_MantenimientoBajaBien
@@ -189,21 +181,21 @@ export async function PATCH(request: Request) {
          @IdUsuarioRegistro = @IdUsuarioRegistro`,
       {
         Accion: "A",
-        IdBaja: id,
-        NumeroFichaBaja: toNullableString(data.NumeroFichaBaja),
-        UnidadOrganica: toNullableString(data.UnidadOrganica),
-        IdBien: parseNullableInt(data.IdBien),
-        Responsable: toNullableString(data.Responsable),
-        Dependencia: toNullableString(data.Dependencia),
-        Ambiente: toNullableString(data.Ambiente),
-        TipoBien: toNullableString(data.TipoBien),
-        IdCondicion: parseNullableInt(data.IdCondicion),
-        IdEstadoBien: parseNullableInt(data.IdEstadoBien),
-        Fundamentacion: toNullableString(data.Fundamentacion),
-        Recomendacion: toNullableString(data.Recomendacion),
-        CausalBaja: toNullableString(data.CausalBaja),
-        Observacion: toNullableString(data.Observacion),
-        IdUsuarioRegistro: parseNullableInt(data.IdUsuarioRegistro),
+        IdBaja: data.IdBaja,
+        NumeroFichaBaja: data.NumeroFichaBaja,
+        UnidadOrganica: data.UnidadOrganica,
+        IdBien: data.IdBien,
+        Responsable: data.Responsable,
+        Dependencia: data.Dependencia,
+        Ambiente: data.Ambiente,
+        TipoBien: data.TipoBien,
+        IdCondicion: data.IdCondicion,
+        IdEstadoBien: data.IdEstadoBien,
+        Fundamentacion: data.Fundamentacion,
+        Recomendacion: data.Recomendacion,
+        CausalBaja: data.CausalBaja,
+        Observacion: data.Observacion,
+        IdUsuarioRegistro: data.IdUsuarioRegistro,
       }
     );
 
@@ -217,11 +209,9 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = parseNullableInt(searchParams.get("id"));
-
-    if (!id) {
-      return NextResponse.json({ error: "IdBaja es requerido" }, { status: 400 });
-    }
+    const parsed = parseSearchParams(bajaDeleteQuerySchema, searchParams);
+    if ("error" in parsed) return parsed.error;
+    const id = parsed.data.id;
 
     await executeQuery("DELETE FROM BajasBienes WHERE IdBaja = @IdBaja", { IdBaja: id });
 

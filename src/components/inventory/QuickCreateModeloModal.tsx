@@ -45,32 +45,31 @@ export default function QuickCreateModeloModal(_: QuickCreateModeloModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger 
-        className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center disabled:text-slate-400 disabled:cursor-not-allowed"
+      <DialogTrigger
+        className="flex items-center text-xs font-medium text-primary hover:text-primary/80 disabled:cursor-not-allowed disabled:text-muted-foreground"
         disabled={isDisabled}
         title=""
       >
-        <Plus className="h-3 w-3 mr-0.5" /> Nuevo
+        <Plus className="mr-0.5 size-3" aria-hidden="true" /> Nuevo
       </DialogTrigger>
-      <DialogContent className="bg-white sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-slate-800">Nuevo Modelo</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">Nuevo Modelo</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Nombre del Modelo *</label>
-            <Input 
+            <label className="text-sm font-medium text-foreground">Nombre del Modelo *</label>
+            <Input
               value={modelo}
               onChange={(e) => setModelo(e.target.value)}
-              placeholder="Ej. ProBook 450 G8" 
-              className="border-slate-200"
+              placeholder="Ej. ProBook 450 G8"
             />
           </div>
-          <div className="flex justify-end space-x-2 mt-6">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="border-slate-200 text-slate-700 hover:bg-slate-50">
+          <div className="mt-6 flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={mutation.isPending || isDisabled}>
+            <Button type="submit" disabled={mutation.isPending || isDisabled}>
               {mutation.isPending ? "Guardando..." : "Guardar"}
             </Button>
           </div>

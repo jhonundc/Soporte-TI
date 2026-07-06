@@ -2,14 +2,15 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { bienFormSchema, type BienFormInput } from "@/lib/validations";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
-  DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FormDialogContent } from "@/components/forms/FormDialogContent";
+import { FormDialogFooter } from "@/components/forms/FormField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,26 +22,9 @@ import {
 } from "@/components/ui/select";
 import { useEffect } from "react";
 import { getMarcas, getAreas, getCondiciones, getEstados, getCategorias } from "@/app/actions/catalogs";
+import { notify } from "@/lib/feedback/toast";
 
-// Esquema de validación con Zod
-const bienSchema = z.object({
-  CodigoInventario: z.string().optional(),
-  CodigoPatrimonial: z.string().optional(),
-  Descripcion: z.string().min(3, "La descripción es requerida"),
-  Modelo: z.string().optional(),
-  IdCategoria: z.string().optional(),
-  IdMarca: z.string().optional(),
-  IdArea: z.string().optional(),
-  NumeroSerie: z.string().optional(),
-  IdCondicion: z.string().optional(),
-  IdEstadoBien: z.string().optional(),
-  FechaCompra: z.string().optional(),
-}).refine(data => data.CodigoInventario || data.CodigoPatrimonial, {
-  message: "Debe proporcionar al menos un código (Inventario o Patrimonial)",
-  path: ["CodigoInventario"],
-});
-
-type BienFormValues = z.infer<typeof bienSchema>;
+type BienFormValues = BienFormInput;
 
 interface BienFormModalProps {
   bien?: any;
@@ -53,7 +37,7 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
   const queryClient = useQueryClient();
   
   const { register, handleSubmit, setValue, watch, formState: { errors }, reset } = useForm<BienFormValues>({
-    resolver: zodResolver(bienSchema),
+    resolver: zodResolver(bienFormSchema),
   });
 
   const selectedMarca = watch("IdMarca");
@@ -134,55 +118,52 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
       onOpenChange(false);
       reset();
     },
-    onError: (error: any) => {
-      alert(error.message);
-    }
+    onError: (error) => notify.fromError(error),
   });
 
   const onSubmit = (data: BienFormValues) => {
     if (readOnly) return;
-    console.log("[BienFormModal] submit data:", data);
     mutation.mutate(data);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
+      <FormDialogContent size="lg" className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-slate-800">
+          <DialogTitle>
             {readOnly ? "Detalle del Bien" : bien ? "Editar Bien" : "Registrar Nuevo Bien"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-2 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Cód. Inventario</label>
-              <Input {...register("CodigoInventario")} placeholder="Ej. INV-001" className="border-slate-200" readOnly={readOnly} />
-              {errors.CodigoInventario && <p className="text-xs text-red-500">{errors.CodigoInventario.message}</p>}
+              <label className="text-sm font-medium text-foreground">Cód. Inventario</label>
+              <Input {...register("CodigoInventario")} placeholder="Ej. INV-001" readOnly={readOnly} />
+              {errors.CodigoInventario && <p className="text-xs text-destructive">{errors.CodigoInventario.message}</p>}
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Cód. Patrimonial</label>
-              <Input {...register("CodigoPatrimonial")} placeholder="Ej. PAT-001" className="border-slate-200" readOnly={readOnly} />
+              <label className="text-sm font-medium text-foreground">Cód. Patrimonial</label>
+              <Input {...register("CodigoPatrimonial")} placeholder="Ej. PAT-001" readOnly={readOnly} />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Descripción *</label>
-            <Input {...register("Descripcion")} placeholder="Ej. Laptop HP Core i7" className="border-slate-200" readOnly={readOnly} />
-            {errors.Descripcion && <p className="text-xs text-red-500">{errors.Descripcion.message}</p>}
+            <label className="text-sm font-medium text-foreground">Descripción *</label>
+            <Input {...register("Descripcion")} placeholder="Ej. Laptop HP Core i7" readOnly={readOnly} />
+            {errors.Descripcion && <p className="text-xs text-destructive">{errors.Descripcion.message}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-slate-700">Categoría</label>
+                <label className="text-sm font-medium text-foreground">Categoría</label>
               </div>
               <Select 
                 value={watch("IdCategoria") ? String(watch("IdCategoria")) : ""} 
                 onValueChange={(val) => setValue("IdCategoria", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar">{selectedCatName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -194,14 +175,14 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
             </div>
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-slate-700">Área</label>
+                <label className="text-sm font-medium text-foreground">Área</label>
               </div>
               <Select 
                 value={watch("IdArea") ? String(watch("IdArea")) : ""} 
                 onValueChange={(val) => setValue("IdArea", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar">{selectedAreaName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -216,14 +197,14 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-slate-700">Marca</label>
+                <label className="text-sm font-medium text-foreground">Marca</label>
               </div>
               <Select 
                 value={watch("IdMarca") ? String(watch("IdMarca")) : ""} 
                 onValueChange={(val) => setValue("IdMarca", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar">{selectedMarcaName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -234,33 +215,33 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Modelo</label>
-              <Input {...register("Modelo")} placeholder="Ej. ThinkPad T14" className="border-slate-200" readOnly={readOnly} />
+              <label className="text-sm font-medium text-foreground">Modelo</label>
+              <Input {...register("Modelo")} placeholder="Ej. ThinkPad T14" readOnly={readOnly} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Nº Serie</label>
-              <Input {...register("NumeroSerie")} placeholder="Ej. ABC123XYZ" className="border-slate-200" readOnly={readOnly} />
+              <label className="text-sm font-medium text-foreground">Nº Serie</label>
+              <Input {...register("NumeroSerie")} placeholder="Ej. ABC123XYZ" readOnly={readOnly} />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Fecha Compra</label>
-              <Input {...register("FechaCompra")} type="date" className="border-slate-200" readOnly={readOnly} />
+              <label className="text-sm font-medium text-foreground">Fecha Compra</label>
+              <Input {...register("FechaCompra")} type="date" readOnly={readOnly} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-slate-700">Condición</label>
+                <label className="text-sm font-medium text-foreground">Condición</label>
               </div>
               <Select 
                 value={watch("IdCondicion") ? String(watch("IdCondicion")) : ""} 
                 onValueChange={(val) => setValue("IdCondicion", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar">{selectedCondicionName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -271,13 +252,13 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Estado</label>
+              <label className="text-sm font-medium text-foreground">Estado</label>
               <Select 
                 value={watch("IdEstadoBien") ? String(watch("IdEstadoBien")) : ""} 
                 onValueChange={(val) => setValue("IdEstadoBien", val as any)}
                 disabled={readOnly}
               >
-                <SelectTrigger className="border-slate-200">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar">{selectedEstadoName}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -289,18 +270,21 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
             </div>
           </div>
 
-          <div className="flex justify-end space-x-2 mt-6">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-slate-200 text-slate-700 hover:bg-slate-50">
-              {readOnly ? "Cerrar" : "Cancelar"}
-            </Button>
-            {!readOnly && (
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={mutation.isPending}>
-                {mutation.isPending ? "Guardando..." : bien ? "Actualizar" : "Guardar"}
+          {!readOnly ? (
+            <FormDialogFooter
+              onCancel={() => onOpenChange(false)}
+              submitLabel={bien ? "Actualizar" : "Guardar"}
+              loading={mutation.isPending}
+            />
+          ) : (
+            <div className="flex justify-end border-t border-border pt-4">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cerrar
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </form>
-      </DialogContent>
+      </FormDialogContent>
     </Dialog>
   );
 }

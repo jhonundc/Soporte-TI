@@ -38,28 +38,27 @@ export default function QuickCreateCategoriaModal() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center">
+      <DialogTrigger className="flex items-center text-xs font-medium text-primary hover:text-primary/80">
         <Plus className="h-3 w-3 mr-0.5" /> Nuevo
       </DialogTrigger>
       <DialogContent className="bg-white sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-slate-800">Nueva Categoría</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">Nueva Categoría</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Nombre de la Categoría *</label>
+            <label className="text-sm font-medium text-foreground">Nombre de la Categoría *</label>
             <Input 
               value={categoria}
               onChange={(e) => setCategoria(e.target.value)}
               placeholder="Ej. Laptops" 
-              className="border-slate-200"
             />
           </div>
           <div className="flex justify-end space-x-2 mt-6">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="border-slate-200 text-slate-700 hover:bg-slate-50">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={mutation.isPending}>
+            <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? "Guardando..." : "Guardar"}
             </Button>
           </div>
