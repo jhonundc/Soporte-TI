@@ -1,36 +1,78 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type UIEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useReactTable, getCoreRowModel, flexRender } from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Search, Edit, Trash2, Eye, Power } from "lucide-react";
-import SoftwareFormModal from "@/components/inventory/SoftwareFormModal";
+import { SoftwareFormModal } from "@/lib/lazy/inventory-modals";
+import { DataTable } from "@/components/data-display/DataTable";
+import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { FilterBar, FilterField } from "@/components/forms/FilterBar";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
+import { IconInput } from "@/components/forms/IconInput";
+import { notify } from "@/lib/feedback/toast";
+import { fetchSessionClient } from "@/lib/auth/session-client";
 
-const fetchSoftware = async ({ queryKey }: any) => {
-  const [_key, search] = queryKey;
-  const term = String(search || "").trim();
-  const url = term ? `/api/software?nombre=${encodeURIComponent(term)}` : "/api/software";
-  const res = await fetch(url);
+const ESTADOS_LICENCIA = ["Vigente", "Vencida", "Suspendida"] as const;
+
+function normalizeEstadoLicencia(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (raw === "1") return "Vigente";
+  if (raw === "0") return "Vencida";
+  return raw;
+}
+
+const fetchSoftware = async () => {
+  const res = await fetch("/api/software");
   if (!res.ok) throw new Error("Error al cargar el inventario de software");
+  return res.json();
+};
+
+const fetchTiposSoftware = async () => {
+  const res = await fetch("/api/tipos-software");
+  if (!res.ok) throw new Error("Error al cargar tipos de software");
+  return res.json();
+};
+
+const fetchTiposLicencia = async () => {
+  const res = await fetch("/api/tipos-licencia");
+  if (!res.ok) throw new Error("Error al cargar tipos de licencia");
   return res.json();
 };
 
 export default function SoftwarePage() {
   const queryClient = useQueryClient();
   const [softwareSearchTerm, setSoftwareSearchTerm] = useState("");
+  const [filterTipoSoftware, setFilterTipoSoftware] = useState("");
+  const [filterEstadoLicencia, setFilterEstadoLicencia] = useState("");
+  const [filterTipoLicencia, setFilterTipoLicencia] = useState("");
+
   const { data: software, isLoading, error } = useQuery({
-    queryKey: ["software", softwareSearchTerm],
+    queryKey: ["software"],
     queryFn: fetchSoftware,
+  });
+  const { data: tiposSoftware } = useQuery({
+    queryKey: ["tipos-software"],
+    queryFn: fetchTiposSoftware,
+  });
+  const { data: tiposLicencia } = useQuery({
+    queryKey: ["tipos-licencia"],
+    queryFn: fetchTiposLicencia,
   });
   const { data: sessionData } = useQuery({
     queryKey: ["session"],
-    queryFn: async () => {
-      const res = await fetch("/api/auth/session");
-      if (!res.ok) return { user: { role: "" } };
-      return res.json();
-    },
+    queryFn: fetchSessionClient,
   });
   const isSupport = String(sessionData?.user?.role || "").toLowerCase().includes("soporte");
 
@@ -38,6 +80,17 @@ export default function SoftwarePage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSoftware, setEditingSoftware] = useState<any>(null);
   const [readOnlyMode, setReadOnlyMode] = useState(false);
+
+  const tipoSoftwareOptions = useMemo(
+    () =>
+      (tiposSoftware ?? [])
+        .filter((tipo: { TipoSoftware?: string }) => tipo.TipoSoftware)
+        .map((tipo: { TipoSoftware: string }) => ({
+          value: tipo.TipoSoftware,
+          label: tipo.TipoSoftware,
+        })),
+    [tiposSoftware]
+  );
 
   const toggleActivoMutation = useMutation({
     mutationFn: async (item: any) => {
@@ -53,7 +106,7 @@ export default function SoftwarePage() {
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["software"] }),
-    onError: (error: any) => alert(error.message),
+    onError: (error) => notify.fromError(error),
   });
 
   const saveMutation = useMutation({
@@ -75,7 +128,7 @@ export default function SoftwarePage() {
       queryClient.invalidateQueries({ queryKey: ["software"] });
       setModalOpen(false);
     },
-    onError: (error: any) => alert(error.message),
+    onError: (error) => notify.fromError(error),
   });
 
   const deleteMutation = useMutation({
@@ -90,7 +143,7 @@ export default function SoftwarePage() {
       return res.json();
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["software"] }),
-    onError: (error: any) => alert(error.message),
+    onError: (error) => notify.fromError(error),
   });
 
   const handleToggleActivo = (item: any) => {
@@ -106,14 +159,46 @@ export default function SoftwarePage() {
     }
   };
 
-  const filteredSoftware = useMemo(() => software || [], [software]);
+  const filteredSoftware = useMemo(() => {
+    if (!software) return [];
+    const term = softwareSearchTerm.toLowerCase().trim();
+
+    return software.filter((item: any) => {
+      const matchesSearch =
+        !term ||
+        String(item.NombreSoftware || "").toLowerCase().includes(term) ||
+        String(item.ProveedorEntidad || "").toLowerCase().includes(term) ||
+        String(item.TipoLicencia || "").toLowerCase().includes(term) ||
+        String(item.TipoSoftware || "").toLowerCase().includes(term) ||
+        String(item.VersionSoftware || "").toLowerCase().includes(term);
+
+      const matchesTipo =
+        !filterTipoSoftware ||
+        String(item.TipoSoftware || "").toLowerCase() === filterTipoSoftware.toLowerCase();
+      const estadoNormalizado = normalizeEstadoLicencia(item.EstadoLicencia);
+      const matchesEstado =
+        !filterEstadoLicencia ||
+        estadoNormalizado.toLowerCase() === filterEstadoLicencia.toLowerCase();
+      const matchesLicencia =
+        !filterTipoLicencia ||
+        String(item.TipoLicencia || "").toLowerCase() === filterTipoLicencia.toLowerCase();
+
+      return matchesSearch && matchesTipo && matchesEstado && matchesLicencia;
+    });
+  }, [
+    software,
+    softwareSearchTerm,
+    filterTipoSoftware,
+    filterEstadoLicencia,
+    filterTipoLicencia,
+  ]);
 
   const displayedSoftware = useMemo(
     () => filteredSoftware.slice(0, visibleCount),
     [filteredSoftware, visibleCount]
   );
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+  const handleScroll = (e: UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
     if (target.scrollHeight - target.scrollTop <= target.clientHeight + 40) {
       if (visibleCount < filteredSoftware.length) {
@@ -122,7 +207,7 @@ export default function SoftwarePage() {
     }
   };
 
-  const columns = useMemo(
+  const columns = useMemo<ColumnDef<any>[]>(
     () => [
       {
         accessorKey: "NombreSoftware",
@@ -157,7 +242,7 @@ export default function SoftwarePage() {
       {
         accessorKey: "EstadoLicencia",
         header: "Estado",
-        cell: (info: any) => info.getValue() || "-",
+        cell: (info: any) => normalizeEstadoLicencia(info.getValue()) || "-",
       },
       {
         accessorKey: "FechaCaducidad",
@@ -171,11 +256,11 @@ export default function SoftwarePage() {
         accessorKey: "Activo",
         header: "Activo",
         cell: (info: any) => (
-          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-            info.getValue() ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
-          }`}>
-            {info.getValue() ? "Sí" : "No"}
-          </span>
+          <StatusBadge
+            active={info.getValue()}
+            activeLabel="Sí"
+            inactiveLabel="No"
+          />
         ),
       },
       {
@@ -184,56 +269,51 @@ export default function SoftwarePage() {
         cell: (info: any) => {
           const item = info.row.original;
           return (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 text-slate-500 hover:text-slate-900"
+            <TableRowActions>
+              <TableActionButton
                 title="Ver"
+                aria-label="Ver software"
                 onClick={() => {
                   setEditingSoftware(item);
                   setReadOnlyMode(true);
                   setModalOpen(true);
                 }}
               >
-                <Eye className="h-4 w-4" />
-              </Button>
-              {!isSupport && (
+                <Eye className="size-4" />
+              </TableActionButton>
+              {!isSupport ? (
                 <>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 text-blue-600 hover:text-blue-800"
+                  <TableActionButton
+                    actionVariant="primary"
                     title="Editar"
+                    aria-label="Editar software"
                     onClick={() => {
                       setEditingSoftware(item);
                       setReadOnlyMode(false);
                       setModalOpen(true);
                     }}
                   >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={`h-9 w-9 ${item.Activo ? "text-amber-600 hover:text-amber-800" : "text-slate-500 hover:text-slate-900"}`}
+                    <Edit className="size-4" />
+                  </TableActionButton>
+                  <TableActionButton
+                    actionVariant="warning"
                     title={item.Activo ? "Desactivar" : "Activar"}
+                    aria-label={item.Activo ? "Desactivar software" : "Activar software"}
                     onClick={() => handleToggleActivo(item)}
                   >
-                    <Power className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 text-red-600 hover:text-red-800"
+                    <Power className="size-4" />
+                  </TableActionButton>
+                  <TableActionButton
+                    actionVariant="destructive"
                     title="Desactivar"
+                    aria-label="Desactivar software"
                     onClick={() => handleDelete(item.IdSoftware)}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                    <Trash2 className="size-4" />
+                  </TableActionButton>
                 </>
-              )}
-            </div>
+              ) : null}
+            </TableRowActions>
           );
         },
       },
@@ -241,120 +321,145 @@ export default function SoftwarePage() {
     [isSupport]
   );
 
-  const table = useReactTable({
-    data: displayedSoftware,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  });
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Inventario de Software</h1>
-          <p className="text-slate-500 text-sm">Registro, edición y seguimiento de licencias de software.</p>
-        </div>
-        {!isSupport && (
-        <Button
-          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-900/20 inline-flex items-center justify-center rounded-lg text-sm font-medium h-10 px-4 py-2"
-          onClick={() => {
-            setEditingSoftware(null);
-            setReadOnlyMode(false);
-            setModalOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" /> Nuevo Software
-        </Button>
-      )}
-      </div>
-
-      <SoftwareFormModal
-        software={editingSoftware}
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        readOnly={readOnlyMode}
+      <PageHeader
+        title="Inventario de Software"
+        description="Registro, edición y seguimiento de licencias de software."
+        actions={
+          !isSupport ? (
+            <Button
+              size="lg"
+              className="gap-2"
+              onClick={() => {
+                setEditingSoftware(null);
+                setReadOnlyMode(false);
+                setModalOpen(true);
+              }}
+            >
+              <Plus className="size-4" aria-hidden="true" /> Nuevo Software
+            </Button>
+          ) : undefined
+        }
       />
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-600">Buscar software</label>
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-            <Input
-              value={softwareSearchTerm}
-              onChange={(e) => {
-                setSoftwareSearchTerm(e.target.value);
-                setVisibleCount(12);
-              }}
-              placeholder="Nombre, proveedor, tipo de licencia..."
-              className="pl-10 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-      </div>
+      {modalOpen ? (
+        <SoftwareFormModal
+          software={editingSoftware}
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          readOnly={readOnlyMode}
+        />
+      ) : null}
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {isLoading ? (
-          <div className="p-6 text-center text-slate-500">Cargando software...</div>
-        ) : error ? (
-          <div className="p-6 text-center text-red-500">Error al cargar el inventario de software.</div>
-        ) : (
-          <div
-            onScroll={handleScroll}
-            className="overflow-x-auto max-h-[620px] overflow-y-auto relative"
+      <FilterBar
+        fieldsClassName="lg:grid-cols-4"
+        activeCount={
+          Number(Boolean(softwareSearchTerm)) +
+          Number(Boolean(filterTipoSoftware)) +
+          Number(Boolean(filterEstadoLicencia)) +
+          Number(Boolean(filterTipoLicencia))
+        }
+        onClear={() => {
+          setSoftwareSearchTerm("");
+          setFilterTipoSoftware("");
+          setFilterEstadoLicencia("");
+          setFilterTipoLicencia("");
+          setVisibleCount(12);
+        }}
+      >
+        <FilterField label="Buscar software" htmlFor="search-software">
+          <IconInput
+            id="search-software"
+            icon={Search}
+            value={softwareSearchTerm}
+            onChange={(e) => {
+              setSoftwareSearchTerm(e.target.value);
+              setVisibleCount(12);
+            }}
+            placeholder="Nombre, proveedor, tipo..."
+          />
+        </FilterField>
+        <FilterField label="Tipo" htmlFor="filter-tipo-software">
+          <SearchableSelect
+            id="filter-tipo-software"
+            value={filterTipoSoftware}
+            onValueChange={(value) => {
+              setFilterTipoSoftware(value);
+              setVisibleCount(12);
+            }}
+            options={tipoSoftwareOptions}
+            placeholder="Seleccione o busque tipo"
+            emptyMessage="No hay tipos que coincidan"
+          />
+        </FilterField>
+        <FilterField label="Estado licencia" htmlFor="filter-estado-licencia">
+          <Select
+            value={filterEstadoLicencia || null}
+            onValueChange={(value) => {
+              setFilterEstadoLicencia(value ?? "");
+              setVisibleCount(12);
+            }}
           >
-            <table className="w-full text-sm text-left text-slate-600 border-collapse">
-              <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="px-6 py-3 font-semibold whitespace-nowrap sticky top-0 bg-slate-50 z-10"
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.length > 0 ? (
-                  table.getRowModel().rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={`border-b border-slate-100 transition-colors hover:bg-slate-50/50 ${
-                        row.original.Activo ? "bg-white" : "bg-slate-50/40 text-slate-400 opacity-80"
-                      }`}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="px-6 py-3 align-top whitespace-nowrap">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={columns.length} className="px-6 py-6 text-center text-slate-500">
-                      No se encontraron registros de software.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+            <SelectTrigger id="filter-estado-licencia" className="w-full">
+              <SelectValue placeholder="Seleccione estado" />
+            </SelectTrigger>
+            <SelectContent>
+              {ESTADOS_LICENCIA.map((estado) => (
+                <SelectItem key={estado} value={estado}>
+                  {estado}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+        <FilterField label="Tipo licencia" htmlFor="filter-tipo-licencia">
+          <Select
+            value={filterTipoLicencia || null}
+            onValueChange={(value) => {
+              setFilterTipoLicencia(value ?? "");
+              setVisibleCount(12);
+            }}
+          >
+            <SelectTrigger id="filter-tipo-licencia" className="w-full">
+              <SelectValue placeholder="Seleccione licencia" />
+            </SelectTrigger>
+            <SelectContent>
+              {tiposLicencia?.map((tipo: { IdTipoLicencia: number; TipoLicencia: string }) => (
+                <SelectItem key={tipo.IdTipoLicencia} value={tipo.TipoLicencia}>
+                  {tipo.TipoLicencia}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      </FilterBar>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-slate-500">
-        <span>
-          Mostrando {displayedSoftware.length} de {filteredSoftware.length} registros
-        </span>
-        {filteredSoftware.length > displayedSoftware.length && (
-          <span className="text-blue-600 font-medium">Desplázate hacia abajo para ver más...</span>
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={displayedSoftware}
+        isLoading={isLoading}
+        error={error as Error | null}
+        emptyMessage="No se encontraron registros de software."
+        stickyHeader
+        scrollContainerClassName="max-h-[620px] overflow-y-auto"
+        onScroll={handleScroll}
+        getRowClassName={(row) =>
+          row.original.Activo ? undefined : "text-muted-foreground opacity-75"
+        }
+        footer={
+          <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              Mostrando {displayedSoftware.length} de {filteredSoftware.length} registros
+            </span>
+            {filteredSoftware.length > displayedSoftware.length && (
+              <span className="animate-pulse font-medium text-primary">
+                Desplázate hacia abajo para ver más...
+              </span>
+            )}
+          </div>
+        }
+      />
     </div>
   );
 }

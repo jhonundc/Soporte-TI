@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { fichaBuscarQuerySchema, parseSearchParams } from "@/lib/validations";
 
 // Helper para mapear una fila plana de la base de datos al formato relacional estructurado
 function mapFichaRow(row: any) {
@@ -109,11 +110,15 @@ function mapFichaRow(row: any) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const query = (searchParams.get("q") || "").trim();
+    const q = searchParams.get("q")?.trim() ?? "";
 
-    if (!query) {
+    if (!q) {
       return NextResponse.json([]);
     }
+
+    const parsed = parseSearchParams(fichaBuscarQuerySchema, searchParams);
+    if ("error" in parsed) return parsed.error;
+    const query = parsed.data.q;
 
     const queryText = `
       SELECT 

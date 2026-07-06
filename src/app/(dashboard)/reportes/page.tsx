@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart, Download, FileSpreadsheet, ShieldCheck, Sparkles } from "lucide-react";
+import { BarChart, Download, FileSpreadsheet, ShieldCheck, Sparkles, Ticket } from "lucide-react";
+import { StatCard } from "@/components/data-display/StatCard";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -22,7 +24,6 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [message, setMessage] = useState("");
-  const [selectedSection, setSelectedSection] = useState<"fichas" | "bienes" | null>(null);
 
   useEffect(() => {
     const loadSession = async () => {
@@ -92,9 +93,9 @@ export default function ReportesPage() {
       link.remove();
       window.URL.revokeObjectURL(url);
       setMessage("Reporte generado correctamente.");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      setMessage(error?.message || "No se pudo generar el reporte.");
+      setMessage(error instanceof Error ? error.message : "No se pudo generar el reporte.");
     } finally {
       setExporting(false);
     }
@@ -102,221 +103,113 @@ export default function ReportesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Reportes</h1>
-            <p className="text-slate-500 text-sm">
-              Genera y descarga los reportes del sistema. En el menú de Reportes verás dos opciones separadas: registro de inventario y registro de fichas.
-            </p>
-          </div>
-        </div>
+      <PageHeader
+        title="Reportes"
+        description="Genera y descarga reportes del sistema. Usa las pestañas superiores para cambiar entre resumen, inventario y fichas."
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <StatCard
+          title="Fichas totales"
+          value={loading ? "..." : (stats?.totalSoporte ?? 0)}
+          icon={Ticket}
+          accent="primary"
+        />
+        <StatCard
+          title="Pendientes"
+          value={loading ? "..." : (stats?.totalSoportePendiente ?? 0)}
+          icon={Ticket}
+          accent="warning"
+        />
+        <StatCard
+          title="En progreso"
+          value={loading ? "..." : (stats?.totalSoporteProceso ?? 0)}
+          icon={Ticket}
+          accent="muted"
+        />
+        <StatCard
+          title="Atendidas"
+          value={loading ? "..." : (stats?.totalSoporteAtendido ?? 0)}
+          icon={Ticket}
+          accent="success"
+        />
+        <StatCard
+          title="Derivadas"
+          value={loading ? "..." : (stats?.totalSoporteDerivado ?? 0)}
+          icon={Ticket}
+          accent="destructive"
+        />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="rounded-[32px] bg-slate-900 p-6 text-white shadow-sm">
-          <div className="mb-6">
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Secciones</p>
-            <h2 className="mt-3 text-xl font-semibold">Reportes</h2>
-            <p className="mt-2 text-sm text-slate-300">Selecciona el reporte que deseas ver en detalle.</p>
-          </div>
-
-          <div className="space-y-3">
-            <button
-              type="button"
-              onClick={() => setSelectedSection("bienes")}
-              className={`w-full rounded-3xl border px-4 py-4 text-left transition ${
-                selectedSection === "bienes"
-                  ? "border-sky-400 bg-slate-800"
-                  : "border-slate-700 bg-slate-950 hover:border-slate-500"
-              }`}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="border-border shadow-[var(--shadow-soft)]">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Registros de bienes</CardTitle>
+            <CardDescription>
+              Reporte de inventario con códigos, descripción, marca y estado.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={() => handleExport("bienes")}
+              disabled={exporting}
+              className="gap-2"
             >
-              <span className="block text-sm font-semibold">Registros de bienes</span>
-              <span className="mt-1 block text-xs text-slate-400">Reporte de inventario</span>
-            </button>
+              <Download className="size-4" aria-hidden="true" />
+              {exporting ? "Generando..." : "Descargar reporte de bienes"}
+            </Button>
+          </CardContent>
+        </Card>
 
-            <button
-              type="button"
-              onClick={() => setSelectedSection("fichas")}
-              className={`w-full rounded-3xl border px-4 py-4 text-left transition ${
-                selectedSection === "fichas"
-                  ? "border-sky-400 bg-slate-800"
-                  : "border-slate-700 bg-slate-950 hover:border-slate-500"
-              }`}
+        <Card className="border-border shadow-[var(--shadow-soft)]">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Registros de fichas</CardTitle>
+            <CardDescription>
+              Reporte de soporte con ticket, responsable, prioridad y bien asociado.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={() => handleExport("fichas")}
+              disabled={exporting}
+              className="gap-2"
             >
-              <span className="block text-sm font-semibold">Registros de fichas</span>
-              <span className="mt-1 block text-xs text-slate-400">Reporte de soporte técnico</span>
-            </button>
-          </div>
-        </aside>
-
-        <main className="space-y-6">
-          <Card className="border border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold">Vista del reporte</CardTitle>
-              <CardDescription>Abre una sección en el panel izquierdo para ver su contenido.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6 text-sm text-slate-600">
-              {selectedSection === null ? (
-                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
-                  <p className="text-slate-700">
-                    Selecciona "Registros de bienes" o "Registros de fichas" para ver el reporte disponible.
-                  </p>
-                </div>
-              ) : selectedSection === "bienes" ? (
-                <div className="space-y-4">
-                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
-                    <h3 className="text-base font-semibold text-slate-900">Registros de bienes</h3>
-                    <p className="text-slate-600">
-                      Incluye código de inventario, código patrimonial, descripción, marca, modelo y estado.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => handleExport("bienes")}
-                    disabled={exporting}
-                    className="gap-2 bg-slate-800 hover:bg-slate-900"
-                  >
-                    <Download className="w-4 h-4" />
-                    {exporting ? "Generando..." : "Descargar reporte de bienes"}
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
-                    <h3 className="text-base font-semibold text-slate-900">Registros de fichas</h3>
-                    <p className="text-slate-600">
-                      Incluye número de ficha, responsable, prioridad, estado, diagnóstico y datos del bien asociado.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => handleExport("fichas")}
-                    disabled={exporting}
-                    className="gap-2 bg-slate-800 hover:bg-slate-900"
-                  >
-                    <Download className="w-4 h-4" />
-                    {exporting ? "Generando..." : "Descargar reporte de fichas"}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {message && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-slate-500" />
-                <span>{message}</span>
-              </div>
-            </div>
-          )}
-
-          <Card className="border-none shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Indicaciones</CardTitle>
-              <CardDescription>Accede a los datos de soporte y genera tu reporte en CSV.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-slate-600">
-              <div className="flex items-start gap-2">
-                <FileSpreadsheet className="mt-1 h-5 w-5 text-slate-400" />
-                <p>El botón generará un archivo descargable con los registros de fichas de soporte.</p>
-              </div>
-              <div className="flex items-start gap-2">
-                <BarChart className="mt-1 h-5 w-5 text-slate-400" />
-                <p>El reporte incluye estado del ticket, responsable, datos del bien y firmas.</p>
-              </div>
-              <div className="flex items-start gap-2">
-                <ShieldCheck className="mt-1 h-5 w-5 text-slate-400" />
-                <p>Los usuarios de soporte tienen acceso restringido a este panel y no pueden acceder a la configuración administrativa.</p>
-              </div>
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-        <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Fichas Totales</CardTitle>
-            <CardDescription>Todos los tickets de soporte registrados.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">
-              {loading ? "..." : stats?.totalSoporte ?? 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Pendientes</CardTitle>
-            <CardDescription>Tickets que aún no fueron atendidos.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">
-              {loading ? "..." : stats?.totalSoportePendiente ?? 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">En Progreso</CardTitle>
-            <CardDescription>Trabajos de soporte que están en curso.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">
-              {loading ? "..." : stats?.totalSoporteProceso ?? 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Atendidas</CardTitle>
-            <CardDescription>Tickets resueltos o cerrados.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">
-              {loading ? "..." : stats?.totalSoporteAtendido ?? 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Derivadas</CardTitle>
-            <CardDescription>Tickets que se derivaron a otro equipo.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">
-              {loading ? "..." : stats?.totalSoporteDerivado ?? 0}
-            </div>
+              <Download className="size-4" aria-hidden="true" />
+              {exporting ? "Generando..." : "Descargar reporte de fichas"}
+            </Button>
           </CardContent>
         </Card>
       </div>
 
-      {message && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+      {message ? (
+        <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-foreground">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-slate-500" />
+            <Sparkles className="size-4 text-muted-foreground" aria-hidden="true" />
             <span>{message}</span>
           </div>
         </div>
-      )}
+      ) : null}
 
-      <Card className="border-none shadow-sm">
+      <Card className="border-border shadow-[var(--shadow-soft)]">
         <CardHeader>
           <CardTitle className="text-lg font-semibold">Indicaciones</CardTitle>
           <CardDescription>Accede a los datos de soporte y genera tu reporte en CSV.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 text-slate-600">
+        <CardContent className="space-y-3 text-muted-foreground">
           <div className="flex items-start gap-2">
-            <FileSpreadsheet className="mt-1 h-5 w-5 text-slate-400" />
+            <FileSpreadsheet className="mt-0.5 size-5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
             <p>El botón generará un archivo descargable con los registros de fichas de soporte.</p>
           </div>
           <div className="flex items-start gap-2">
-            <BarChart className="mt-1 h-5 w-5 text-slate-400" />
+            <BarChart className="mt-0.5 size-5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
             <p>El reporte incluye estado del ticket, responsable, datos del bien y firmas.</p>
           </div>
           <div className="flex items-start gap-2">
-            <ShieldCheck className="mt-1 h-5 w-5 text-slate-400" />
-            <p>Los usuarios de soporte tienen acceso restringido a este panel y no pueden acceder a la configuración administrativa.</p>
+            <ShieldCheck className="mt-0.5 size-5 shrink-0 text-muted-foreground/70" aria-hidden="true" />
+            <p>
+              Los usuarios de soporte tienen acceso restringido a este panel y no pueden acceder a
+              la configuración administrativa.
+            </p>
           </div>
         </CardContent>
       </Card>

@@ -1,18 +1,12 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { executeQuery } from "@/lib/db";
 import { hashPassword } from "@/lib/auth/password";
-import { verifyToken } from "@/lib/auth/jwt";
-
-async function getSessionRole() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("auth_token")?.value;
-  if (!token) return null;
-  const payload = await verifyToken(token);
-  return payload?.role;
-}
+import { requireAdmin, requireAuth } from "@/lib/auth/guards";
 
 export async function GET() {
+  const auth = await requireAuth();
+  if ("error" in auth) return auth.error;
+
   try {
     const result = await executeQuery(`
       SELECT u.IdUsuario, u.Usuario, u.Nombres, u.Cargo, u.IdRol, u.Activo, u.FechaCreacion, r.NombreRol 
@@ -28,6 +22,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
   try {
     const data = await request.json();
     if (!data.Usuario || !data.Clave || !data.Nombres || !data.IdRol) {
@@ -61,6 +58,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
+
   try {
     const data = await request.json();
     if (!data.IdUsuario) {
@@ -98,12 +98,10 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  try {
-    const role = await getSessionRole();
-    if (role === "soporte") {
-      return NextResponse.json({ error: "No tiene permisos para eliminar usuarios" }, { status: 403 });
-    }
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth.error;
 
+  try {
     const { searchParams } = new URL(request.url);
     const id = parseInt(searchParams.get("id") || "");
 

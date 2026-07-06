@@ -1,10 +1,20 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { executeQuery } from "@/lib/db";
-import { verifyToken } from "@/lib/auth/jwt";
+import { adminSession, authSession, guardFailed } from "@/lib/auth/guards";
+import {
+  bienCreateApiSchema,
+  bienDeleteQuerySchema,
+  bienToggleApiSchema,
+  bienUpdateApiSchema,
+  parseJsonBody,
+  parseSearchParams,
+} from "@/lib/validations";
 
 // Obtener todos los bienes
 export async function GET() {
+  const auth = await authSession();
+  if (guardFailed(auth)) return auth;
+
   try {
     const result = await executeQuery(
       `EXEC sp_ConsultaBien @Accion = @Accion`,
@@ -74,62 +84,29 @@ export async function GET() {
   }
 }
 
-// Crear un nuevo bien
-function parseNullableInt(value: any): number | null {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
-  const parsed = typeof value === "number" ? value : parseInt(String(value), 10);
-  return Number.isInteger(parsed) ? parsed : null;
-}
-
 export async function POST(request: Request) {
+  const session = await adminSession();
+  if (guardFailed(session)) return session;
+
   try {
-    const data = await request.json();
-    console.log("[API] POST /api/bienes payload:", JSON.stringify(data));
-    
-    // Validaciones básicas
-    if (!data.CodigoInventario && !data.CodigoPatrimonial) {
-      return NextResponse.json(
-        { error: "Debe proporcionar al menos un código (Inventario o Patrimonial)" },
-        { status: 400 }
-      );
-    }
-
-    const fechaCompra = data.FechaCompra ? new Date(data.FechaCompra) : null;
-    if (fechaCompra && isNaN(fechaCompra.getTime())) {
-      return NextResponse.json(
-        { error: "Fecha de compra inválida" },
-        { status: 400 }
-      );
-    }
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
-    }
+    const parsed = await parseJsonBody(bienCreateApiSchema, request);
+    if ("error" in parsed) return parsed.error;
+    const data = parsed.data;
 
     const paramsForCreate = {
-      CodigoInventario: data.CodigoInventario || null,
-      CodigoPatrimonial: data.CodigoPatrimonial || null,
-      IdCategoria: parseNullableInt(data.IdCategoria),
-      IdMarca: parseNullableInt(data.IdMarca),
-      IdArea: parseNullableInt(data.IdArea),
-      Modelo: data.Modelo ? String(data.Modelo).trim() : null,
-      NumeroSerie: data.NumeroSerie || null,
-      Descripcion: data.Descripcion || null,
-      IdCondicion: parseNullableInt(data.IdCondicion),
-      IdEstadoBien: parseNullableInt(data.IdEstadoBien),
-      FechaCompra: fechaCompra,
-      IdUsuario: payload.id,
+      CodigoInventario: data.CodigoInventario,
+      CodigoPatrimonial: data.CodigoPatrimonial,
+      IdCategoria: data.IdCategoria,
+      IdMarca: data.IdMarca,
+      IdArea: data.IdArea,
+      Modelo: data.Modelo,
+      NumeroSerie: data.NumeroSerie,
+      Descripcion: data.Descripcion,
+      IdCondicion: data.IdCondicion,
+      IdEstadoBien: data.IdEstadoBien,
+      FechaCompra: data.FechaCompra ?? null,
+      IdUsuario: session.id,
     };
-    console.log('[API] POST /api/bienes params:', Object.keys(paramsForCreate).reduce((acc:any,k)=>{acc[k]=typeof (paramsForCreate as any)[k]; return acc},{}));
     const result = await executeQuery(
       `EXEC sp_MantenimientoBien 
         @Accion = @Accion,
@@ -166,78 +143,65 @@ export async function POST(request: Request) {
 
 // Actualizar un bien (Editar / Desactivar)
 export async function PATCH(request: Request) {
+  const session = await adminSession();
+  if (guardFailed(session)) return session;
+
   try {
-    const data = await request.json();
-    console.log("[API] PATCH /api/bienes payload:", JSON.stringify(data));
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+    let raw: unknown;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
     }
 
-    const { IdBien, ...fields } = data;
-    
-    if (!IdBien) {
-      return NextResponse.json(
-        { error: "Debe proporcionar el IdBien" },
-        { status: 400 }
-      );
-    }
-
-    // Si solo viene Activo, es una actualización de estado (Activar/Desactivar)
-    if (Object.keys(fields).length === 1 && "Activo" in fields) {
+    const toggleParsed = bienToggleApiSchema.safeParse(raw);
+    if (
+      toggleParsed.success &&
+      typeof raw === "object" &&
+      raw !== null &&
+      Object.keys(raw).length === 2 &&
+      "IdBien" in raw &&
+      "Activo" in raw
+    ) {
+      const data = toggleParsed.data;
       await executeQuery(
         `EXEC sp_MantenimientoBien 
           @Accion = @Accion,
           @IdBien = @IdBien,
           @IdUsuario = @IdUsuario`,
         {
-          IdBien: parseInt(IdBien),
-          IdUsuario: payload.id,
-          Accion: fields.Activo ? "T" : "E",
+          IdBien: data.IdBien,
+          IdUsuario: session.id,
+          Accion: data.Activo ? "T" : "E",
         }
       );
       return NextResponse.json({ success: true });
     }
 
-    const params: Record<string, any> = { 
-      IdBien: parseNullableInt(IdBien),
-      CodigoInventario: fields.CodigoInventario || null,
-      CodigoPatrimonial: fields.CodigoPatrimonial || null,
-      IdCategoria: parseNullableInt(fields.IdCategoria),
-      IdMarca: parseNullableInt(fields.IdMarca),
-      IdArea: parseNullableInt(fields.IdArea),
-      Modelo: fields.Modelo ? String(fields.Modelo).trim() : null,
-      NumeroSerie: fields.NumeroSerie || null,
-      Descripcion: fields.Descripcion || null,
-      IdCondicion: parseNullableInt(fields.IdCondicion),
-      IdEstadoBien: parseNullableInt(fields.IdEstadoBien),
-      FechaCompra: fields.FechaCompra ? new Date(fields.FechaCompra) : null,
-      IdUsuarioModificacion: payload.id,
-    };
-    console.log('[API] PATCH /api/bienes params types:', Object.keys(params).reduce((acc:any,k)=>{acc[k]=typeof (params as any)[k]; return acc},{}));
-
-    const hasUpdateFields = [
-      "CodigoInventario",
-      "CodigoPatrimonial",
-      "IdCategoria",
-      "IdMarca",
-      "IdArea",
-      "Modelo",
-      "NumeroSerie",
-      "Descripcion",
-      "IdCondicion",
-      "IdEstadoBien",
-      "FechaCompra",
-    ].some((key) => fields[key] !== undefined);
-
-    if (!hasUpdateFields) {
-      return NextResponse.json({ error: "No hay campos para actualizar" }, { status: 400 });
+    const updateParsed = bienUpdateApiSchema.safeParse(raw);
+    if (!updateParsed.success) {
+      return NextResponse.json(
+        { error: updateParsed.error.issues[0]?.message || "Datos inválidos" },
+        { status: 400 }
+      );
     }
+    const data = updateParsed.data;
+
+    const params = {
+      IdBien: data.IdBien,
+      CodigoInventario: data.CodigoInventario ?? null,
+      CodigoPatrimonial: data.CodigoPatrimonial ?? null,
+      IdCategoria: data.IdCategoria ?? null,
+      IdMarca: data.IdMarca ?? null,
+      IdArea: data.IdArea ?? null,
+      Modelo: data.Modelo ?? null,
+      NumeroSerie: data.NumeroSerie ?? null,
+      Descripcion: data.Descripcion ?? null,
+      IdCondicion: data.IdCondicion ?? null,
+      IdEstadoBien: data.IdEstadoBien ?? null,
+      FechaCompra: data.FechaCompra ?? null,
+      IdUsuarioModificacion: session.id,
+    };
 
     await executeQuery(
       `EXEC sp_MantenimientoBien 
@@ -270,34 +234,21 @@ export async function PATCH(request: Request) {
 
 // Dar de baja un bien (eliminación lógica)
 export async function DELETE(request: Request) {
+  const session = await adminSession();
+  if (guardFailed(session)) return session;
+
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
-
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
-    }
-
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: "Debe proporcionar el ID del bien" },
-        { status: 400 }
-      );
-    }
+    const parsed = parseSearchParams(bienDeleteQuerySchema, searchParams);
+    if ("error" in parsed) return parsed.error;
+    const id = parsed.data.id;
 
     await executeQuery(`EXEC sp_MantenimientoBien 
         @Accion = @Accion,
         @IdBien = @IdBien,
         @IdUsuario = @IdUsuario`, {
-      IdBien: parseInt(id),
-      IdUsuario: payload.id,
+      IdBien: id,
+      IdUsuario: session.id,
       Accion: "E",
     });
 

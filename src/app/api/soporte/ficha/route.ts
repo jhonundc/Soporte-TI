@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import {
+  fichaCreateApiSchema,
+  fichaDeleteQuerySchema,
+  fichaListQuerySchema,
+  fichaUpdateApiSchema,
+  parseJsonBody,
+  parseSearchParams,
+} from "@/lib/validations";
 
 function parseNullableInt(value: any): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -168,17 +176,21 @@ async function enrichFichas(baseRows: any[]) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const idSoporte = parseNullableInt(searchParams.get("id"));
-    const numeroFicha = toNullableString(searchParams.get("numeroFicha"));
-    const idBien = parseNullableInt(searchParams.get("idBien"));
-    const responsable = toNullableString(searchParams.get("responsable"));
-    const dependencia = toNullableString(searchParams.get("dependencia"));
-    const ambiente = toNullableString(searchParams.get("ambiente"));
-    const idPrioridad = parseNullableInt(searchParams.get("idPrioridad"));
-    const estadoTicket = toNullableString(searchParams.get("estadoTicket"));
-    const idUsuarioSoporte = parseNullableInt(searchParams.get("idUsuarioSoporte"));
-    const abiertos = parseBooleanLike(searchParams.get("abiertos"));
-    const cerrados = parseBooleanLike(searchParams.get("cerrados"));
+    const queryParsed = parseSearchParams(fichaListQuerySchema, searchParams);
+    if ("error" in queryParsed) return queryParsed.error;
+
+    const q = queryParsed.data;
+    const idSoporte = q.id;
+    const numeroFicha = q.numeroFicha;
+    const idBien = q.idBien;
+    const responsable = q.responsable;
+    const dependencia = q.dependencia;
+    const ambiente = q.ambiente;
+    const idPrioridad = q.idPrioridad;
+    const estadoTicket = q.estadoTicket;
+    const idUsuarioSoporte = q.idUsuarioSoporte;
+    const abiertos = q.abiertos;
+    const cerrados = q.cerrados;
 
     let accion = "L";
     if (idSoporte) accion = "I";
@@ -238,37 +250,31 @@ export async function GET(request: Request) {
 // Crear una nueva ficha de soporte
 export async function POST(request: Request) {
   try {
-    const data = await request.json();
-
-    // Validaciones básicas
-    if (!data.NumeroFicha) {
-      return NextResponse.json(
-        { error: "El número de ficha es requerido" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseJsonBody(fichaCreateApiSchema, request);
+    if ("error" in parsed) return parsed.error;
+    const data = parsed.data;
 
     const params = {
       Accion: "R",
       NumeroFicha: data.NumeroFicha,
       UnidadOrganica: data.UnidadOrganica || "UNIDAD DE ESTADISTICA E INFORMATICA",
-      IdBien: parseNullableInt(data.IdBien),
-      Responsable: toNullableString(data.Responsable),
-      Dependencia: toNullableString(data.Dependencia),
-      Ambiente: toNullableString(data.Ambiente),
-      TipoBien: toNullableString(data.TipoBien),
-      IdCondicion: parseNullableInt(data.IdCondicion),
-      IdEstadoBien: parseNullableInt(data.IdEstadoBien),
-      TrabajosRealizados: toNullableString(data.TrabajosRealizados),
-      Diagnostico: toNullableString(data.Diagnostico),
-      Recomendacion: toNullableString(data.Recomendacion),
-      IdPrioridad: parseNullableInt(data.IdPrioridad),
+      IdBien: data.IdBien,
+      Responsable: data.Responsable,
+      Dependencia: data.Dependencia,
+      Ambiente: data.Ambiente,
+      TipoBien: data.TipoBien,
+      IdCondicion: data.IdCondicion,
+      IdEstadoBien: data.IdEstadoBien,
+      TrabajosRealizados: data.TrabajosRealizados,
+      Diagnostico: data.Diagnostico,
+      Recomendacion: data.Recomendacion,
+      IdPrioridad: data.IdPrioridad,
       EstadoTicket: data.EstadoTicket || "Pendiente",
-      Siglas: toNullableString(data.Siglas),
-      FirmaSoporte: toNullableString(data.FirmaSoporte),
-      FirmaJefeUnidad: toNullableString(data.FirmaJefeUnidad),
-      FirmaAreaUsuario: toNullableString(data.FirmaAreaUsuario),
-      IdUsuarioSoporte: parseNullableInt(data.IdUsuarioSoporte),
+      Siglas: data.Siglas,
+      FirmaSoporte: data.FirmaSoporte,
+      FirmaJefeUnidad: data.FirmaJefeUnidad,
+      FirmaAreaUsuario: data.FirmaAreaUsuario,
+      IdUsuarioSoporte: data.IdUsuarioSoporte,
     };
 
     await executeQuery(
@@ -314,49 +320,50 @@ export async function POST(request: Request) {
 // Actualizar una ficha de soporte
 export async function PATCH(request: Request) {
   try {
-    const data = await request.json();
-    const id = parseNullableInt(data.IdSoporte);
-
-    if (!id) {
-      return NextResponse.json(
-        { error: "IdSoporte es requerido y debe ser un número válido" },
-        { status: 400 }
-      );
-    }
+    const parsed = await parseJsonBody(fichaUpdateApiSchema, request);
+    if ("error" in parsed) return parsed.error;
+    const data = parsed.data;
+    const id = data.IdSoporte;
 
     let accion = "A";
     if (typeof data.Accion === "string" && ["A", "C", "P", "E"].includes(data.Accion)) {
       accion = data.Accion;
     } else if (data.Cerrar === true) {
       accion = "C";
-    } else if (Object.keys(data).every((k) => ["IdSoporte", "IdPrioridad"].includes(k)) && data.IdPrioridad !== undefined) {
+    } else if (
+      Object.keys(data).every((k) => ["IdSoporte", "IdPrioridad"].includes(k)) &&
+      data.IdPrioridad !== undefined
+    ) {
       accion = "P";
-    } else if (Object.keys(data).every((k) => ["IdSoporte", "EstadoTicket"].includes(k)) && data.EstadoTicket !== undefined) {
+    } else if (
+      Object.keys(data).every((k) => ["IdSoporte", "EstadoTicket"].includes(k)) &&
+      data.EstadoTicket !== undefined
+    ) {
       accion = "E";
     }
 
     const params = {
       Accion: accion,
       IdSoporte: id,
-      NumeroFicha: toNullableString(data.NumeroFicha),
+      NumeroFicha: data.NumeroFicha,
       UnidadOrganica: data.UnidadOrganica || "UNIDAD DE ESTADISTICA E INFORMATICA",
-      IdBien: parseNullableInt(data.IdBien),
-      Responsable: toNullableString(data.Responsable),
-      Dependencia: toNullableString(data.Dependencia),
-      Ambiente: toNullableString(data.Ambiente),
-      TipoBien: toNullableString(data.TipoBien),
-      IdCondicion: parseNullableInt(data.IdCondicion),
-      IdEstadoBien: parseNullableInt(data.IdEstadoBien),
-      TrabajosRealizados: toNullableString(data.TrabajosRealizados),
-      Diagnostico: toNullableString(data.Diagnostico),
-      Recomendacion: toNullableString(data.Recomendacion),
-      IdPrioridad: parseNullableInt(data.IdPrioridad),
-      EstadoTicket: toNullableString(data.EstadoTicket) || "Pendiente",
-      Siglas: toNullableString(data.Siglas),
-      FirmaSoporte: toNullableString(data.FirmaSoporte),
-      FirmaJefeUnidad: toNullableString(data.FirmaJefeUnidad),
-      FirmaAreaUsuario: toNullableString(data.FirmaAreaUsuario),
-      IdUsuarioSoporte: parseNullableInt(data.IdUsuarioSoporte),
+      IdBien: data.IdBien,
+      Responsable: data.Responsable,
+      Dependencia: data.Dependencia,
+      Ambiente: data.Ambiente,
+      TipoBien: data.TipoBien,
+      IdCondicion: data.IdCondicion,
+      IdEstadoBien: data.IdEstadoBien,
+      TrabajosRealizados: data.TrabajosRealizados,
+      Diagnostico: data.Diagnostico,
+      Recomendacion: data.Recomendacion,
+      IdPrioridad: data.IdPrioridad,
+      EstadoTicket: data.EstadoTicket || "Pendiente",
+      Siglas: data.Siglas,
+      FirmaSoporte: data.FirmaSoporte,
+      FirmaJefeUnidad: data.FirmaJefeUnidad,
+      FirmaAreaUsuario: data.FirmaAreaUsuario,
+      IdUsuarioSoporte: data.IdUsuarioSoporte,
     };
 
     await executeQuery(
@@ -404,14 +411,9 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = parseNullableInt(searchParams.get("id"));
-
-    if (!id) {
-      return NextResponse.json(
-        { error: "IdSoporte es requerido" },
-        { status: 400 }
-      );
-    }
+    const parsed = parseSearchParams(fichaDeleteQuerySchema, searchParams);
+    if ("error" in parsed) return parsed.error;
+    const id = parsed.data.id;
 
     await executeQuery(
       `EXEC sp_MantenimientoSoporte

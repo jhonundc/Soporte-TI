@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { executeQuery } from "@/lib/db";
-import { verifyToken } from "@/lib/auth/jwt";
+import { adminSession, authSession, guardFailed } from "@/lib/auth/guards";
 
 function parseNullableInt(value: any) {
   if (value === undefined || value === null || value === "") return null;
@@ -58,16 +57,10 @@ async function enrichComponentes(records: any[]) {
   );
 }
 
-async function getUserIdFromToken() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("auth_token")?.value;
-  if (!token) return null;
-  const payload = await verifyToken(token);
-  if (!payload || !payload.id) return null;
-  return payload.id;
-}
-
 export async function GET(request: Request) {
+  const auth = await authSession();
+  if (guardFailed(auth)) return auth;
+
   try {
     const url = new URL(request.url);
     const catalog = url.searchParams.get("catalog") === "true";
@@ -133,12 +126,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  try {
-    const idUsuario = await getUserIdFromToken();
-    if (!idUsuario) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+  const session = await adminSession();
+  if (guardFailed(session)) return session;
 
+  try {
     const data = await request.json();
 
     if (!data.IdBien || !data.IdComponente) {
@@ -173,7 +164,7 @@ export async function POST(request: Request) {
         IdBien: parseNullableInt(data.IdBien),
         IdComponente: parseNullableInt(data.IdComponente),
         Observacion: data.Observacion || null,
-        IdUsuario: idUsuario,
+        IdUsuario: session.id,
         Cantidad: parseNullableInt(data.Cantidad),
         TipoEquipo: data.TipoEquipo || null,
         DescripcionModelo: data.DescripcionModelo || null,
@@ -201,12 +192,10 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  try {
-    const idUsuario = await getUserIdFromToken();
-    if (!idUsuario) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+  const session = await adminSession();
+  if (guardFailed(session)) return session;
 
+  try {
     const data = await request.json();
 
     const idBienComponente = parseNullableInt(data.IdBienComponente);
@@ -227,7 +216,7 @@ export async function PATCH(request: Request) {
         {
           Accion: data.Activo ? "T" : "E",
           IdBienComponente: idBienComponente,
-          IdUsuario: idUsuario,
+          IdUsuario: session.id,
         }
       );
       return NextResponse.json({ success: true });
@@ -260,7 +249,7 @@ export async function PATCH(request: Request) {
         IdBien: parseNullableInt(data.IdBien),
         IdComponente: parseNullableInt(data.IdComponente),
         Observacion: data.Observacion || null,
-        IdUsuario: idUsuario,
+        IdUsuario: session.id,
         Cantidad: parseNullableInt(data.Cantidad),
         TipoEquipo: data.TipoEquipo || null,
         DescripcionModelo: data.DescripcionModelo || null,
@@ -288,12 +277,11 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const session = await adminSession();
+  if (guardFailed(session)) return session;
+
   try {
     const { searchParams } = new URL(request.url);
-    const idUsuario = await getUserIdFromToken();
-    if (!idUsuario) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
 
     let idBienComponente = parseNullableInt(searchParams.get("idBienComponente"));
 
@@ -324,7 +312,7 @@ export async function DELETE(request: Request) {
         @Accion = @Accion,
         @IdBienComponente = @IdBienComponente,
         @IdUsuario = @IdUsuario`,
-      { Accion: "E", IdBienComponente: idBienComponente, IdUsuario: idUsuario }
+      { Accion: "E", IdBienComponente: idBienComponente, IdUsuario: session.id }
     );
 
     return NextResponse.json({ success: true });

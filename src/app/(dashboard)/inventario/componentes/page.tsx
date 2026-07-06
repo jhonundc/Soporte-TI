@@ -1,30 +1,37 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useReactTable, getCoreRowModel, flexRender } from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Edit, Trash2, Eye, Power } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, Power } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import ComponenteFormModal from "@/components/inventory/ComponenteFormModal";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ComponenteFormModal } from "@/lib/lazy/inventory-modals";
+import { DataTable } from "@/components/data-display/DataTable";
+import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { FilterBar, FilterField } from "@/components/forms/FilterBar";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import { useState, useMemo } from "react";
+import { notify } from "@/lib/feedback/toast";
+import { fetchSessionClient } from "@/lib/auth/session-client";
+import { getEstados } from "@/app/actions/catalogs";
 
-const fetchComponentes = async ({ queryKey }: any) => {
-  const [_key, codigo, serie] = queryKey;
-  const codigoTrim = String(codigo || "").trim();
-  const serieTrim = String(serie || "").trim();
-
-  let url = "/api/componentes";
-  if (codigoTrim) url = `/api/componentes?codigoPatrimonial=${encodeURIComponent(codigoTrim)}`;
-  else if (serieTrim) url = `/api/componentes?serie=${encodeURIComponent(serieTrim)}`;
-
-  const res = await fetch(url);
+const fetchComponentes = async () => {
+  const res = await fetch("/api/componentes");
   if (!res.ok) throw new Error("Error al cargar los componentes de bienes");
   return res.json();
 };
 
-const fetchSession = async () => {
-  const res = await fetch("/api/auth/session");
-  if (!res.ok) return { user: { role: "" } };
+const fetchComponenteCatalog = async () => {
+  const res = await fetch("/api/componentes?catalog=true");
+  if (!res.ok) throw new Error("Error al cargar tipos de componente");
   return res.json();
 };
 
@@ -32,20 +39,41 @@ export default function ComponentesPage() {
   const queryClient = useQueryClient();
   const [codigoSearch, setCodigoSearch] = useState("");
   const [serieSearch, setSerieSearch] = useState("");
+  const [filterTipoComponente, setFilterTipoComponente] = useState("");
+  const [filterEstado, setFilterEstado] = useState("");
 
   const { data: componentes, isLoading, error } = useQuery({
-    queryKey: ["componentes", codigoSearch, serieSearch],
+    queryKey: ["componentes"],
     queryFn: fetchComponentes,
+  });
+  const { data: componenteCatalog } = useQuery({
+    queryKey: ["componentes", "catalog"],
+    queryFn: fetchComponenteCatalog,
+  });
+  const { data: estados } = useQuery({
+    queryKey: ["estados"],
+    queryFn: getEstados,
   });
   const { data: sessionData } = useQuery({
     queryKey: ["session"],
-    queryFn: fetchSession,
+    queryFn: fetchSessionClient,
   });
   const isSupport = String(sessionData?.user?.role || "").toLowerCase().includes("soporte");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingComponente, setEditingComponente] = useState<any>(null);
   const [readOnlyMode, setReadOnlyMode] = useState(false);
+
+  const tipoComponenteOptions = useMemo(
+    () =>
+      (componenteCatalog ?? [])
+        .filter((item: { NombreComponente?: string }) => item.NombreComponente)
+        .map((item: { NombreComponente: string }) => ({
+          value: item.NombreComponente,
+          label: item.NombreComponente,
+        })),
+    [componenteCatalog]
+  );
 
   const toggleActivoMutation = useMutation({
     mutationFn: async (comp: any) => {
@@ -65,9 +93,7 @@ export default function ComponentesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["componentes"] });
     },
-    onError: (error: any) => {
-      alert(error.message);
-    },
+    onError: (error) => notify.fromError(error),
   });
 
   const deleteMutation = useMutation({
@@ -84,9 +110,7 @@ export default function ComponentesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["componentes"] });
     },
-    onError: (error: any) => {
-      alert(error.message);
-    },
+    onError: (error) => notify.fromError(error),
   });
 
   const handleToggleActivo = (comp: any) => {
@@ -109,15 +133,21 @@ export default function ComponentesPage() {
     return componentes.filter((c: any) => {
       const codigo = (c.CodigoPatrimonial?.toLowerCase() || "");
       const serie = (c.Serie?.toLowerCase() || "");
+      const estadoEquipo = String(c.EstadoEquipo || "").toLowerCase();
 
       const matchesCodigo = !codigoTerm || codigo.includes(codigoTerm);
       const matchesSerie = !serieTerm || serie.includes(serieTerm);
+      const matchesTipo =
+        !filterTipoComponente ||
+        String(c.NombreComponente || "").toLowerCase() === filterTipoComponente.toLowerCase();
+      const matchesEstado =
+        !filterEstado || estadoEquipo === filterEstado.toLowerCase();
 
-      return matchesCodigo && matchesSerie;
+      return matchesCodigo && matchesSerie && matchesTipo && matchesEstado;
     });
-  }, [componentes, codigoSearch, serieSearch]);
+  }, [componentes, codigoSearch, serieSearch, filterTipoComponente, filterEstado]);
 
-  const columns = useMemo(
+  const columns = useMemo<ColumnDef<any>[]>(
     () => [
       {
         accessorKey: "BienDescripcion",
@@ -125,7 +155,7 @@ export default function ComponentesPage() {
         cell: (info: any) => (
           <div className="space-y-1">
             <div>{info.getValue() || "-"}</div>
-            <div className="text-xs text-slate-500">{info.row.original.CodigoInventario || ""}</div>
+            <div className="text-xs text-muted-foreground">{info.row.original.CodigoInventario || ""}</div>
           </div>
         ),
       },
@@ -136,7 +166,7 @@ export default function ComponentesPage() {
           <div className="space-y-1">
             <div>{info.getValue() || `Componente ${info.row.original.IdComponente}`}</div>
             {!info.row.original.Activo && (
-              <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-600">
+              <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive ring-1 ring-inset ring-destructive/20">
                 Inactivo
               </span>
             )}
@@ -189,56 +219,51 @@ export default function ComponentesPage() {
         cell: (info: any) => {
           const comp = info.row.original;
           return (
-            <div className="flex items-center space-x-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+            <TableRowActions>
+              <TableActionButton
                 title="Ver"
+                aria-label="Ver componente"
                 onClick={() => {
                   setEditingComponente(comp);
                   setReadOnlyMode(true);
                   setModalOpen(true);
                 }}
               >
-                <Eye className="h-4 w-4" />
-              </Button>
-              {!isSupport && (
+                <Eye className="size-4" />
+              </TableActionButton>
+              {!isSupport ? (
                 <>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                  <TableActionButton
+                    actionVariant="primary"
                     title="Editar"
+                    aria-label="Editar componente"
                     onClick={() => {
                       setEditingComponente(comp);
                       setReadOnlyMode(false);
                       setModalOpen(true);
                     }}
                   >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className={`h-8 w-8 ${comp.Activo ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-slate-400 hover:text-slate-500 hover:bg-slate-100"}`}
+                    <Edit className="size-4" />
+                  </TableActionButton>
+                  <TableActionButton
+                    actionVariant="warning"
                     title={comp.Activo ? "Desactivar" : "Activar"}
+                    aria-label={comp.Activo ? "Desactivar componente" : "Activar componente"}
                     onClick={() => handleToggleActivo(comp)}
                   >
-                    <Power className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    <Power className="size-4" />
+                  </TableActionButton>
+                  <TableActionButton
+                    actionVariant="destructive"
                     title="Dar de baja"
+                    aria-label="Dar de baja componente"
                     onClick={() => handleDelete(comp)}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                    <Trash2 className="size-4" />
+                  </TableActionButton>
                 </>
-              )}
-            </div>
+              ) : null}
+            </TableRowActions>
           );
         },
       },
@@ -246,112 +271,115 @@ export default function ComponentesPage() {
     [isSupport]
   );
 
-  const table = useReactTable({
-    data: filteredComponentes,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  });
-
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Componentes de Bienes</h1>
-          <p className="text-slate-500 text-sm">Gestión de componentes asignados a bienes.</p>
-        </div>
-        {!isSupport && (
-          <Button
-            onClick={() => {
-              setEditingComponente(null);
-              setReadOnlyMode(false);
-              setModalOpen(true);
-            }}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-900/20 inline-flex items-center justify-center rounded-lg text-sm font-medium h-10 px-4 py-2 transition-all"
-          >
-            <Plus className="mr-2 h-4 w-4" /> Nuevo Registro
-          </Button>
-        )}
-      </div>
-
-      <ComponenteFormModal
-        componente={editingComponente}
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        readOnly={readOnlyMode}
+      <PageHeader
+        title="Componentes de Bienes"
+        description="Gestión de componentes asignados a bienes."
+        actions={
+          !isSupport ? (
+            <Button
+              size="lg"
+              className="gap-2"
+              onClick={() => {
+                setEditingComponente(null);
+                setReadOnlyMode(false);
+                setModalOpen(true);
+              }}
+            >
+              <Plus className="size-4" aria-hidden="true" /> Nuevo Registro
+            </Button>
+          ) : undefined
+        }
       />
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-600">Código Patrimonial</label>
+      {modalOpen ? (
+        <ComponenteFormModal
+          componente={editingComponente}
+          open={modalOpen}
+          onOpenChange={setModalOpen}
+          readOnly={readOnlyMode}
+        />
+      ) : null}
+
+      <FilterBar
+        fieldsClassName="lg:grid-cols-4"
+        activeCount={
+          Number(Boolean(codigoSearch)) +
+          Number(Boolean(serieSearch)) +
+          Number(Boolean(filterTipoComponente)) +
+          Number(Boolean(filterEstado))
+        }
+        onClear={() => {
+          setCodigoSearch("");
+          setSerieSearch("");
+          setFilterTipoComponente("");
+          setFilterEstado("");
+        }}
+      >
+        <FilterField label="Código Patrimonial" htmlFor="search-codigo">
           <Input
+            id="search-codigo"
             placeholder="Buscar por código patrimonial"
             value={codigoSearch}
-            onChange={(e) => { setCodigoSearch(e.target.value); setSerieSearch(""); }}
-            className="bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            onChange={(e) => setCodigoSearch(e.target.value)}
           />
-        </div>
-        <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-600">Serie</label>
+        </FilterField>
+        <FilterField label="Serie" htmlFor="search-serie">
           <Input
+            id="search-serie"
             placeholder="Buscar por serie"
             value={serieSearch}
-            onChange={(e) => { setSerieSearch(e.target.value); setCodigoSearch(""); }}
-            className="bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+            onChange={(e) => setSerieSearch(e.target.value)}
           />
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {isLoading ? (
-          <div className="p-6 text-center text-slate-500">Cargando registros...</div>
-        ) : error ? (
-          <div className="p-6 text-center text-red-500">Error al cargar los registros. Verifica la conexión.</div>
-        ) : (
-          <div className="overflow-x-auto max-h-[500px] overflow-y-auto relative">
-            <table className="w-full text-sm text-left text-slate-600 border-collapse">
-              <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th key={header.id} className="px-6 py-4 font-semibold whitespace-nowrap sticky top-0 bg-slate-50 z-10">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.length > 0 ? (
-                  table.getRowModel().rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={`border-b border-slate-100 transition-colors hover:bg-slate-50/50 ${
-                        row.original.Activo ? "bg-white" : "bg-slate-50/40 text-slate-400 opacity-75"
-                      }`}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id} className="px-6 py-4 whitespace-nowrap">
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={columns.length} className="px-6 py-4 text-center text-slate-500">
-                      No se encontraron componentes registrados.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+        </FilterField>
+        <FilterField label="Tipo componente" htmlFor="filter-tipo-componente">
+          <SearchableSelect
+            id="filter-tipo-componente"
+            value={filterTipoComponente}
+            onValueChange={setFilterTipoComponente}
+            options={tipoComponenteOptions}
+            placeholder="Seleccione o busque tipo"
+            emptyMessage="No hay tipos que coincidan"
+          />
+        </FilterField>
+        <FilterField label="Estado" htmlFor="filter-estado">
+          <Select
+            value={filterEstado || null}
+            onValueChange={(value) => {
+              setFilterEstado(value ?? "");
+            }}
+          >
+            <SelectTrigger id="filter-estado" className="w-full">
+              <SelectValue placeholder="Seleccione estado" />
+            </SelectTrigger>
+            <SelectContent>
+              {estados?.map((estado: { IdEstado: number; EstadoBien: string }) => (
+                <SelectItem key={estado.IdEstado} value={estado.EstadoBien}>
+                  {estado.EstadoBien}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      </FilterBar>
+      <DataTable
+        columns={columns}
+        data={filteredComponentes}
+        isLoading={isLoading}
+        error={error as Error | null}
+        emptyMessage="No se encontraron componentes registrados."
+        stickyHeader
+        scrollContainerClassName="max-h-[500px] overflow-y-auto"
+        getRowClassName={(row) =>
+          row.original.Activo ? undefined : "text-muted-foreground opacity-75"
+        }
+        footer={
+          <div className="text-sm text-muted-foreground">
+            Mostrando {filteredComponentes.length} registros
           </div>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-slate-500">Mostrando {filteredComponentes.length} registros</div>
-      </div>
+        }
+      />
     </div>
   );
 }

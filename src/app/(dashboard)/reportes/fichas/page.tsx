@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Sparkles, Eye, Edit, Trash2, Search, Ticket, Clock, Wrench, CheckCircle, TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { StatCard } from "@/components/data-display/StatCard";
+import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
+import { FilterBar, FilterField } from "@/components/forms/FilterBar";
+import { IconInput } from "@/components/forms/IconInput";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -74,9 +79,21 @@ export default function ReportesFichasPage() {
 
   const StatusBadge = ({ status }: { status?: string }) => {
     const s = (status || "").toLowerCase();
-    const classes = s.includes('pend') ? 'bg-amber-100 text-amber-800' : s.includes('progres') ? 'bg-indigo-100 text-indigo-800' : (s.includes('atend') || s === 'atendida') ? 'bg-green-100 text-green-800' : s.includes('deriv') ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-800';
-    return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${classes}`}>{status || '-'}</span>;
-  }
+    const classes = s.includes("pend")
+      ? "bg-warning/10 text-warning ring-warning/20"
+      : s.includes("progres")
+        ? "bg-primary/10 text-primary ring-primary/20"
+        : s.includes("atend") || s === "atendida"
+          ? "bg-success/10 text-success ring-success/20"
+          : s.includes("deriv")
+            ? "bg-muted text-muted-foreground ring-border"
+            : "bg-muted text-muted-foreground ring-border";
+    return (
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${classes}`}>
+        {status || "-"}
+      </span>
+    );
+  };
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -254,140 +271,144 @@ export default function ReportesFichasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-teal-600 to-cyan-500">Registro de fichas</h1>
-          <p className="text-sm text-slate-500 mt-1">Listado, filtros, export y acciones sobre fichas de soporte.</p>
-        </div>
-        <div className="flex gap-2 items-center">
-          <Button onClick={loadRecords} className="bg-teal-600 hover:bg-teal-700 text-white shadow-sm">
+      <PageHeader
+        title="Registro de fichas"
+        description="Listado, filtros, exportación y acciones sobre fichas de soporte y baja."
+        actions={
+          <Button variant="outline" onClick={loadRecords}>
             Recargar
           </Button>
-        </div>
+        }
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          title="Total fichas"
+          value={loadingStats ? "..." : stats?.totalSoporte ?? records.length}
+          icon={Ticket}
+          accent="primary"
+        />
+        <StatCard
+          title="Pendientes"
+          value={loadingStats ? "..." : stats?.totalSoportePendiente ?? 0}
+          icon={Clock}
+          accent="warning"
+        />
+        <StatCard
+          title="En progreso"
+          value={loadingStats ? "..." : stats?.totalSoporteProceso ?? 0}
+          icon={Wrench}
+          accent="primary"
+        />
+        <StatCard
+          title="Atendidas"
+          value={loadingStats ? "..." : stats?.totalSoporteAtendido ?? 0}
+          icon={CheckCircle}
+          accent="success"
+        />
+        <StatCard
+          title="Derivadas"
+          value={loadingStats ? "..." : stats?.totalSoporteDerivado ?? 0}
+          icon={TrendingUp}
+          accent="muted"
+        />
       </div>
 
-      {/* Estadísticas de tickets */}
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
-        <Card className="border-none shadow-sm border-l-4 border-blue-600 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Total fichas</CardTitle>
-            <CardDescription>Todos los tickets registrados</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-800">{loadingStats ? "..." : stats?.totalSoporte ?? records.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm border-l-4 border-amber-600 bg-amber-50">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Pendientes</CardTitle>
-            <CardDescription>Tickets que aún no fueron atendidos</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-800">{loadingStats ? "..." : stats?.totalSoportePendiente ?? 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm border-l-4 border-indigo-600 bg-indigo-50">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">En Progreso</CardTitle>
-            <CardDescription>Tickets en atención</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-indigo-800">{loadingStats ? "..." : stats?.totalSoporteProceso ?? 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm border-l-4 border-green-600 bg-green-50">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Atendidas</CardTitle>
-            <CardDescription>Tickets finalizados</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-800">{loadingStats ? "..." : stats?.totalSoporteAtendido ?? 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm border-l-4 border-purple-600 bg-purple-50">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Derivadas</CardTitle>
-            <CardDescription>Tickets derivados a otra área</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-800">{loadingStats ? "..." : stats?.totalSoporteDerivado ?? 0}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Card Registros */}
-      <Card className="border">
-        <CardHeader className="flex items-center justify-between">
+      <Card className="border-border shadow-[var(--shadow-soft)]">
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Registros</CardTitle>
             <CardDescription>Lista de fichas filtrable y exportable</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={handleExport} disabled={exporting} className="gap-2 bg-gradient-to-r from-teal-600 to-cyan-500 hover:from-teal-700 hover:to-cyan-600 text-white shadow">
-              <Download className="w-4 h-4" />
-              {exporting ? "Generando..." : "Descargar"}
-            </Button>
-          </div>
+          <Button onClick={handleExport} disabled={exporting} className="gap-2" size="lg">
+            <Download className="size-4" aria-hidden="true" />
+            {exporting ? "Generando..." : "Descargar"}
+          </Button>
         </CardHeader>
 
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-2 items-center mb-4">
-            <div className="relative w-full max-w-md">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-              <Input className="pl-10 pr-10 py-2 rounded-lg shadow-sm border" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-              {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2 text-slate-500">✕</button>}
-            </div>
-            <div className="flex gap-2">
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="py-2 rounded-md" />
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="py-2 rounded-md" />
-            </div>
-          </div>
+        <CardContent className="space-y-4">
+          <FilterBar
+            activeCount={
+              Number(Boolean(searchTerm)) + Number(Boolean(startDate)) + Number(Boolean(endDate))
+            }
+            onClear={() => {
+              setSearchTerm("");
+              setStartDate("");
+              setEndDate("");
+            }}
+          >
+            <FilterField label="Buscar" htmlFor="search-fichas" className="sm:col-span-2">
+              <IconInput
+                id="search-fichas"
+                icon={Search}
+                placeholder="Buscar por número, responsable, dependencia..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </FilterField>
+            <FilterField label="Desde" htmlFor="start-date">
+              <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </FilterField>
+            <FilterField label="Hasta" htmlFor="end-date">
+              <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </FilterField>
+          </FilterBar>
 
-          <div className="overflow-auto rounded-xl border">
-            <table className="w-full text-sm">
-              <thead className="bg-gradient-to-r from-slate-900 to-slate-700 text-white text-xs">
+          <div className="surface-panel overflow-auto">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead className="border-b border-border bg-muted/50 text-xs font-semibold tracking-wide text-foreground uppercase">
                 <tr>
-                  <th className="p-3 text-left">Nº Ficha</th>
-                  <th className="p-3 text-left">Tipo</th>
-                  <th className="p-3 text-left">Responsable</th>
-                  <th className="p-3 text-left">Dependencia</th>
-                  <th className="p-3 text-left">Bien</th>
-                  <th className="p-3 text-left">Fecha</th>
-                  <th className="p-3 text-left">Estado</th>
-                  <th className="p-3 text-center">Acciones</th>
+                  <th className="px-4 py-3.5 text-left" scope="col">Nº Ficha</th>
+                  <th className="px-4 py-3.5 text-left" scope="col">Tipo</th>
+                  <th className="px-4 py-3.5 text-left" scope="col">Responsable</th>
+                  <th className="px-4 py-3.5 text-left" scope="col">Dependencia</th>
+                  <th className="px-4 py-3.5 text-left" scope="col">Bien</th>
+                  <th className="px-4 py-3.5 text-left" scope="col">Fecha</th>
+                  <th className="px-4 py-3.5 text-left" scope="col">Estado</th>
+                  <th className="px-4 py-3.5 text-right" scope="col">Acciones</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-border bg-card">
                 {loading ? (
-                  <tr><td colSpan={8} className="p-6 text-center">Cargando...</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Cargando...</td></tr>
                 ) : filteredRecords.length === 0 ? (
-                  <tr><td colSpan={8} className="p-6 text-center">No hay registros</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No hay registros</td></tr>
                 ) : (
                   filteredRecords.map((r) => (
-                    <tr key={`${r.tipo}-${r.id}`} className="border-t transition-colors text-xs hover:bg-slate-50 odd:bg-white even:bg-slate-50">
-                      <td className="p-3 font-medium text-slate-700">{r.numero || '-'}</td>
-                      <td className="p-3">{r.tipo || '-'}</td>
-                      <td className="p-3">{r.responsable || '-'}</td>
-                      <td className="p-3">{r.dependencia || '-'}</td>
-                      <td className="p-3">{r.bien?.Descripcion || r.bien?.CodigoInventario || '-'}</td>
-                      <td className="p-3">{r.fechaRegistro ? new Date(r.fechaRegistro).toLocaleString() : '-'}</td>
-                      <td className="p-3"><StatusBadge status={r.estado} /></td>
-                      <td className="p-3 text-center">
-                        <div className="flex justify-center gap-1">
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-teal-600" onClick={() => { setViewingRecord(r); setViewOpen(true); }} title="Ver">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600" onClick={() => router.push(`/soporte/${r.tipo === 'Baja' ? 'baja' : 'ficha'}?id=${r.id}`)} title="Editar">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => handleDelete(r)} title="Eliminar">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                    <tr key={`${r.tipo}-${r.id}`} className="transition-colors duration-150 hover:bg-muted/40">
+                      <td className="whitespace-nowrap px-4 py-3.5 font-medium text-foreground">{r.numero || "-"}</td>
+                      <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.tipo || "-"}</td>
+                      <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.responsable || "-"}</td>
+                      <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.dependencia || "-"}</td>
+                      <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.bien?.Descripcion || r.bien?.CodigoInventario || "-"}</td>
+                      <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.fechaRegistro ? new Date(r.fechaRegistro).toLocaleString() : "-"}</td>
+                      <td className="whitespace-nowrap px-4 py-3.5"><StatusBadge status={r.estado} /></td>
+                      <td className="whitespace-nowrap px-4 py-3.5">
+                        <TableRowActions>
+                          <TableActionButton
+                            title="Ver"
+                            aria-label="Ver ficha"
+                            onClick={() => { setViewingRecord(r); setViewOpen(true); }}
+                          >
+                            <Eye className="size-4" />
+                          </TableActionButton>
+                          <TableActionButton
+                            actionVariant="primary"
+                            title="Editar"
+                            aria-label="Editar ficha"
+                            onClick={() => router.push(`/soporte/${r.tipo === "Baja" ? "baja" : "ficha"}?id=${r.id}`)}
+                          >
+                            <Edit className="size-4" />
+                          </TableActionButton>
+                          <TableActionButton
+                            actionVariant="destructive"
+                            title="Eliminar"
+                            aria-label="Eliminar ficha"
+                            onClick={() => handleDelete(r)}
+                          >
+                            <Trash2 className="size-4" />
+                          </TableActionButton>
+                        </TableRowActions>
                       </td>
                     </tr>
                   ))
@@ -399,9 +420,9 @@ export default function ReportesFichasPage() {
       </Card>
 
       {message && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-foreground">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-slate-500" />
+            <Sparkles className="size-4 text-muted-foreground" aria-hidden="true" />
             <span>{message}</span>
           </div>
         </div>

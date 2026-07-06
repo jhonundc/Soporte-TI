@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { adminSession, authSession, guardFailed } from "@/lib/auth/guards";
 
 // Obtener todas las condiciones
 export async function GET() {

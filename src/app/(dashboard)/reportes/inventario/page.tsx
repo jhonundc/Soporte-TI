@@ -1,13 +1,23 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { Download, Sparkles, Eye, Edit, Trash2, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AppWindow, Boxes, Cpu, Download, Edit, Eye, Search, Sparkles, Trash2 } from "lucide-react";
+import { StatCard } from "@/components/data-display/StatCard";
+import { StatusBadge } from "@/components/data-display/StatusBadge";
+import { TableActionButton, TableRowActions } from "@/components/data-display/TableRowActions";
+import { FilterBar, FilterField } from "@/components/forms/FilterBar";
+import { IconInput } from "@/components/forms/IconInput";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import BienFormModal from "@/components/inventory/BienFormModal";
-import ComponenteFormModal from "@/components/inventory/ComponenteFormModal";
-import SoftwareFormModal from "@/components/inventory/SoftwareFormModal";
+import {
+  BienFormModal,
+  ComponenteFormModal,
+  SoftwareFormModal,
+} from "@/lib/lazy/inventory-modals";
+import { notify } from "@/lib/feedback/toast";
+import { cn } from "@/lib/utils";
 
 type InventarioStats = {
   totalBienes: number;
@@ -19,23 +29,52 @@ type InventarioStats = {
 
 type FilterType = "bienes" | "componentes" | "software";
 
-const StatusBadge = ({ active }: { active: boolean | number }) => {
-  const isActive = active === 1 || active === true;
+const TABLE_HEAD_CLASS =
+  "border-b border-border bg-muted/50 text-xs font-semibold tracking-wide text-foreground uppercase";
+const TABLE_ROW_CLASS = "border-t border-border transition-colors duration-150 hover:bg-muted/40";
+const TABLE_CELL_CLASS = "whitespace-nowrap px-4 py-3.5 text-foreground";
+const TABLE_CELL_MUTED = "whitespace-nowrap px-4 py-3.5 text-muted-foreground";
+
+function RecordRowActions({
+  onView,
+  onEdit,
+  onDelete,
+}: {
+  onView: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-      isActive ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
-    }`}>
-      {isActive ? "Activo" : "Inactivo"}
-    </span>
+    <TableRowActions>
+      <TableActionButton title="Ver" aria-label="Ver registro" onClick={onView}>
+        <Eye className="size-4" />
+      </TableActionButton>
+      <TableActionButton
+        actionVariant="primary"
+        title="Editar"
+        aria-label="Editar registro"
+        onClick={onEdit}
+      >
+        <Edit className="size-4" />
+      </TableActionButton>
+      <TableActionButton
+        actionVariant="destructive"
+        title="Eliminar"
+        aria-label="Eliminar registro"
+        onClick={onDelete}
+      >
+        <Trash2 className="size-4" />
+      </TableActionButton>
+    </TableRowActions>
   );
-};
+}
 
 export default function ReportesInventarioPage() {
   const [exporting, setExporting] = useState(false);
   const [message, setMessage] = useState("");
   const [stats, setStats] = useState<InventarioStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
-  
+
   const [filterType, setFilterType] = useState<FilterType>("bienes");
   const [records, setRecords] = useState<any[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -74,7 +113,6 @@ export default function ReportesInventarioPage() {
     loadRecords();
   }, [filterType]);
 
-  // Extraer función de carga para reutilizar
   async function loadRecords() {
     setLoadingRecords(true);
     try {
@@ -103,7 +141,6 @@ export default function ReportesInventarioPage() {
     setExporting(true);
     setMessage("");
     try {
-      // Determinar endpoint según el tipo de filtro actual
       let exportUrl = "";
       let filenameType = "inventario";
       if (filterType === "bienes") {
@@ -133,45 +170,33 @@ export default function ReportesInventarioPage() {
       link.remove();
       window.URL.revokeObjectURL(url);
       setMessage(`Reporte de ${filenameType} generado correctamente.`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      setMessage(error?.message || "No se pudo generar el reporte.");
+      setMessage(error instanceof Error ? error.message : "No se pudo generar el reporte.");
     } finally {
       setExporting(false);
     }
   };
 
-  const statsItems = [
-    {
-      label: "Bienes",
-      value: stats?.totalBienes ?? 0,
-      description: "Total",
-      className: "border-none shadow-sm border-l-4 border-blue-600 bg-blue-50",
-      labelClass: "text-slate-700",
-      valueClass: "text-blue-800",
-    },
-    {
-      label: "Componentes",
-      value: stats?.totalComponentes ?? 0,
-      description: "Total",
-      className: "border-none shadow-sm border-l-4 border-emerald-600 bg-emerald-50",
-      labelClass: "text-emerald-800",
-      valueClass: "text-emerald-900",
-    },
-    {
-      label: "Software",
-      value: stats?.totalSoftware ?? 0,
-      description: "Total",
-      className: "border-none shadow-sm border-l-4 border-violet-600 bg-violet-50",
-      labelClass: "text-violet-800",
-      valueClass: "text-violet-900",
-    },
-  ];
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (searchTerm.trim()) count += 1;
+    if (startDate) count += 1;
+    if (endDate) count += 1;
+    if (activeFilter !== "todos") count += 1;
+    return count;
+  }, [searchTerm, startDate, endDate, activeFilter]);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStartDate("");
+    setEndDate("");
+    setActiveFilter("todos");
+  };
 
   const filteredRecords = useMemo(() => {
     let result = records;
 
-    // Filtro por búsqueda de texto
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter((record) => {
@@ -182,13 +207,15 @@ export default function ReportesInventarioPage() {
             (record.CodigoPatrimonial?.toLowerCase() || "").includes(term) ||
             (record.NumeroSerie?.toLowerCase() || "").includes(term)
           );
-        } else if (filterType === "componentes") {
+        }
+        if (filterType === "componentes") {
           return (
             (record.NombreComponente?.toLowerCase() || "").includes(term) ||
             (record.BienDescripcion?.toLowerCase() || "").includes(term) ||
             (record.Serie?.toLowerCase() || "").includes(term)
           );
-        } else if (filterType === "software") {
+        }
+        if (filterType === "software") {
           return (
             (record.NombreSoftware?.toLowerCase() || "").includes(term) ||
             (record.TipoSoftware?.toLowerCase() || "").includes(term) ||
@@ -199,21 +226,17 @@ export default function ReportesInventarioPage() {
       });
     }
 
-    // Filtro por estado activo/inactivo
     if (activeFilter !== "todos") {
       const isActive = activeFilter === "activos";
       result = result.filter((record) => {
-        // Handle both boolean and numeric values (true/1 for active, false/0 for inactive)
         const isRecordActive = record.Activo === 1 || record.Activo === true;
         return isActive ? isRecordActive : !isRecordActive;
       });
     }
 
-    // Filtro por fechas
     if (startDate || endDate) {
       result = result.filter((record) => {
         const recordDate = record.FechaRegistro ? new Date(record.FechaRegistro) : null;
-        
         if (!recordDate) return true;
 
         if (startDate) {
@@ -234,65 +257,78 @@ export default function ReportesInventarioPage() {
     return result;
   }, [records, searchTerm, filterType, activeFilter, startDate, endDate]);
 
+  const openModal = (record: any, mode: "view" | "edit") => {
+    setModalRecord(record);
+    setModalMode(mode);
+    setModalOpen(true);
+  };
+
   const renderRecordsTable = () => {
     if (loadingRecords) {
-      return <div className="p-8 text-center text-slate-500">Cargando registros...</div>;
+      return (
+        <div className="p-8 text-center text-sm text-muted-foreground">Cargando registros...</div>
+      );
     }
 
     if (filteredRecords.length === 0) {
-      return <div className="p-8 text-center text-slate-500">No hay registros para mostrar</div>;
+      return (
+        <div className="p-8 text-center text-sm text-muted-foreground">
+          No hay registros para mostrar
+        </div>
+      );
     }
 
     if (filterType === "bienes") {
       return (
-        <div className="overflow-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="bg-gradient-to-r from-slate-900 to-slate-700 text-white text-xs">
+        <div className="overflow-auto">
+          <table className="w-full border-collapse text-left text-sm text-muted-foreground">
+            <thead className={TABLE_HEAD_CLASS}>
               <tr>
-                <th className="px-4 py-3 text-left font-semibold">Código Inventario</th>
-                <th className="px-4 py-3 text-left font-semibold">Descripción</th>
-                <th className="px-4 py-3 text-left font-semibold">Marca</th>
-                <th className="px-4 py-3 text-left font-semibold">Modelo</th>
-                <th className="px-4 py-3 text-left font-semibold">Fecha Registro</th>
-                <th className="px-4 py-3 text-left font-semibold">Estado</th>
+                <th className="px-4 py-3.5 text-left">Código Inventario</th>
+                <th className="px-4 py-3.5 text-left">Descripción</th>
+                <th className="px-4 py-3.5 text-left">Marca</th>
+                <th className="px-4 py-3.5 text-left">Modelo</th>
+                <th className="px-4 py-3.5 text-left">Fecha Registro</th>
+                <th className="px-4 py-3.5 text-right">Estado</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border bg-card">
               {filteredRecords.map((bien, idx) => (
-                <tr key={idx} className="border-t transition-colors text-xs hover:bg-slate-50 odd:bg-white even:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-700">{bien.CodigoInventario || "-"}</td>
-                  <td className="px-4 py-3">{bien.Descripcion || "-"}</td>
-                  <td className="px-4 py-3">{bien.Marca?.Marca || "-"}</td>
-                  <td className="px-4 py-3">{bien.Modelo?.Modelo || "-"}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {bien.FechaRegistro ? new Date(bien.FechaRegistro).toLocaleDateString("es-ES") : "-"}
+                <tr key={idx} className={TABLE_ROW_CLASS}>
+                  <td className={cn(TABLE_CELL_CLASS, "font-medium")}>
+                    {bien.CodigoInventario || "-"}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                  <td className={TABLE_CELL_CLASS}>{bien.Descripcion || "-"}</td>
+                  <td className={TABLE_CELL_CLASS}>{bien.Marca?.Marca || "-"}</td>
+                  <td className={TABLE_CELL_CLASS}>{bien.Modelo?.Modelo || "-"}</td>
+                  <td className={TABLE_CELL_MUTED}>
+                    {bien.FechaRegistro
+                      ? new Date(bien.FechaRegistro).toLocaleDateString("es-ES")
+                      : "-"}
+                  </td>
+                  <td className={cn(TABLE_CELL_CLASS, "text-right")}>
+                    <div className="flex items-center justify-end gap-2">
                       <StatusBadge active={bien.Activo} />
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-blue-600" onClick={() => { setModalRecord(bien); setModalMode("view"); setModalOpen(true); }}>
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600" onClick={() => { setModalRecord(bien); setModalMode("edit"); setModalOpen(true); }}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600" onClick={async () => {
+                      <RecordRowActions
+                        onView={() => openModal(bien, "view")}
+                        onEdit={() => openModal(bien, "edit")}
+                        onDelete={async () => {
                           const ok = confirm("¿Eliminar este bien? Esta acción lo desactivará.");
                           if (!ok) return;
                           try {
-                            const res = await fetch(`/api/bienes?id=${encodeURIComponent(String(bien.IdBien))}`, { method: "DELETE" });
+                            const res = await fetch(
+                              `/api/bienes?id=${encodeURIComponent(String(bien.IdBien))}`,
+                              { method: "DELETE" }
+                            );
                             const data = await res.json();
                             if (!res.ok) throw new Error(data.error || "Error al eliminar");
                             setMessage("Bien eliminado/desactivado correctamente.");
                             await loadRecords();
-                          } catch (e: any) {
-                            alert(e.message || "Error al eliminar");
+                          } catch (e: unknown) {
+                            notify.fromError(e, "Error al eliminar");
                           }
-                        }}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                        }}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -305,54 +341,53 @@ export default function ReportesInventarioPage() {
 
     if (filterType === "componentes") {
       return (
-        <div className="overflow-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="bg-gradient-to-r from-slate-900 to-slate-700 text-white text-xs">
+        <div className="overflow-auto">
+          <table className="w-full border-collapse text-left text-sm text-muted-foreground">
+            <thead className={TABLE_HEAD_CLASS}>
               <tr>
-                <th className="px-4 py-3 text-left font-semibold">Bien</th>
-                <th className="px-4 py-3 text-left font-semibold">Componente</th>
-                <th className="px-4 py-3 text-left font-semibold">Marca</th>
-                <th className="px-4 py-3 text-left font-semibold">Serie</th>
-                <th className="px-4 py-3 text-left font-semibold">Fecha Registro</th>
-                <th className="px-4 py-3 text-left font-semibold">Estado</th>
+                <th className="px-4 py-3.5 text-left">Bien</th>
+                <th className="px-4 py-3.5 text-left">Componente</th>
+                <th className="px-4 py-3.5 text-left">Marca</th>
+                <th className="px-4 py-3.5 text-left">Serie</th>
+                <th className="px-4 py-3.5 text-left">Fecha Registro</th>
+                <th className="px-4 py-3.5 text-right">Estado</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border bg-card">
               {filteredRecords.map((comp, idx) => (
-                <tr key={idx} className="border-t transition-colors text-xs hover:bg-slate-50 odd:bg-white even:bg-slate-50">
-                  <td className="px-4 py-3">{comp.BienDescripcion || "-"}</td>
-                  <td className="px-4 py-3">{comp.NombreComponente || "-"}</td>
-                  <td className="px-4 py-3">{comp.Marca || "-"}</td>
-                  <td className="px-4 py-3">{comp.Serie || "-"}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {comp.FechaRegistro ? new Date(comp.FechaRegistro).toLocaleDateString("es-ES") : "-"}
+                <tr key={idx} className={TABLE_ROW_CLASS}>
+                  <td className={TABLE_CELL_CLASS}>{comp.BienDescripcion || "-"}</td>
+                  <td className={TABLE_CELL_CLASS}>{comp.NombreComponente || "-"}</td>
+                  <td className={TABLE_CELL_CLASS}>{comp.Marca || "-"}</td>
+                  <td className={TABLE_CELL_CLASS}>{comp.Serie || "-"}</td>
+                  <td className={TABLE_CELL_MUTED}>
+                    {comp.FechaRegistro
+                      ? new Date(comp.FechaRegistro).toLocaleDateString("es-ES")
+                      : "-"}
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                  <td className={cn(TABLE_CELL_CLASS, "text-right")}>
+                    <div className="flex items-center justify-end gap-2">
                       <StatusBadge active={comp.Activo} />
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-blue-600" onClick={() => { setModalRecord(comp); setModalMode("view"); setModalOpen(true); }}>
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600" onClick={() => { setModalRecord(comp); setModalMode("edit"); setModalOpen(true); }}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600" onClick={async () => {
+                      <RecordRowActions
+                        onView={() => openModal(comp, "view")}
+                        onEdit={() => openModal(comp, "edit")}
+                        onDelete={async () => {
                           const ok = confirm("¿Eliminar este componente del bien?");
                           if (!ok) return;
                           try {
-                            const res = await fetch(`/api/componentes?idBien=${encodeURIComponent(String(comp.IdBien))}&idComponente=${encodeURIComponent(String(comp.IdComponente))}`, { method: "DELETE" });
+                            const res = await fetch(
+                              `/api/componentes?idBien=${encodeURIComponent(String(comp.IdBien))}&idComponente=${encodeURIComponent(String(comp.IdComponente))}`,
+                              { method: "DELETE" }
+                            );
                             const data = await res.json();
                             if (!res.ok) throw new Error(data.error || "Error al eliminar");
                             setMessage("Componente eliminado correctamente.");
                             await loadRecords();
-                          } catch (e: any) {
-                            alert(e.message || "Error al eliminar");
+                          } catch (e: unknown) {
+                            notify.fromError(e, "Error al eliminar");
                           }
-                        }}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                        }}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -363,104 +398,106 @@ export default function ReportesInventarioPage() {
       );
     }
 
-    if (filterType === "software") {
-      return (
-        <div className="overflow-auto rounded-xl border">
-          <table className="w-full text-sm">
-            <thead className="bg-gradient-to-r from-slate-900 to-slate-700 text-white text-xs">
-              <tr>
-                <th className="px-4 py-3 text-left font-semibold">Nombre</th>
-                <th className="px-4 py-3 text-left font-semibold">Tipo</th>
-                <th className="px-4 py-3 text-left font-semibold">Versión</th>
-                <th className="px-4 py-3 text-left font-semibold">Licencias</th>
-                <th className="px-4 py-3 text-left font-semibold">Fecha Registro</th>
-                <th className="px-4 py-3 text-left font-semibold">Estado</th>
+    return (
+      <div className="overflow-auto">
+        <table className="w-full border-collapse text-left text-sm text-muted-foreground">
+          <thead className={TABLE_HEAD_CLASS}>
+            <tr>
+              <th className="px-4 py-3.5 text-left">Nombre</th>
+              <th className="px-4 py-3.5 text-left">Tipo</th>
+              <th className="px-4 py-3.5 text-left">Versión</th>
+              <th className="px-4 py-3.5 text-left">Licencias</th>
+              <th className="px-4 py-3.5 text-left">Fecha Registro</th>
+              <th className="px-4 py-3.5 text-right">Estado</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border bg-card">
+            {filteredRecords.map((soft, idx) => (
+              <tr key={idx} className={TABLE_ROW_CLASS}>
+                <td className={TABLE_CELL_CLASS}>{soft.NombreSoftware || "-"}</td>
+                <td className={TABLE_CELL_CLASS}>{soft.TipoSoftware || "-"}</td>
+                <td className={TABLE_CELL_CLASS}>{soft.VersionSoftware || "-"}</td>
+                <td className={TABLE_CELL_CLASS}>{soft.CantidadLicencias || "-"}</td>
+                <td className={TABLE_CELL_MUTED}>
+                  {soft.FechaRegistro
+                    ? new Date(soft.FechaRegistro).toLocaleDateString("es-ES")
+                    : "-"}
+                </td>
+                <td className={cn(TABLE_CELL_CLASS, "text-right")}>
+                  <div className="flex items-center justify-end gap-2">
+                    <StatusBadge active={soft.Activo} />
+                    <RecordRowActions
+                      onView={() => openModal(soft, "view")}
+                      onEdit={() => openModal(soft, "edit")}
+                      onDelete={async () => {
+                        const ok = confirm("¿Eliminar este software? Será desactivado.");
+                        if (!ok) return;
+                        try {
+                          const res = await fetch(
+                            `/api/software?id=${encodeURIComponent(String(soft.IdSoftware))}`,
+                            { method: "DELETE" }
+                          );
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || "Error al eliminar");
+                          setMessage("Software desactivado correctamente.");
+                          await loadRecords();
+                        } catch (e: unknown) {
+                          notify.fromError(e, "Error al eliminar");
+                        }
+                      }}
+                    />
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {filteredRecords.map((soft, idx) => (
-                <tr key={idx} className="border-t transition-colors text-xs hover:bg-slate-50 odd:bg-white even:bg-slate-50">
-                  <td className="px-4 py-3">{soft.NombreSoftware || "-"}</td>
-                  <td className="px-4 py-3">{soft.TipoSoftware || "-"}</td>
-                  <td className="px-4 py-3">{soft.VersionSoftware || "-"}</td>
-                  <td className="px-4 py-3">{soft.CantidadLicencias || "-"}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {soft.FechaRegistro ? new Date(soft.FechaRegistro).toLocaleDateString("es-ES") : "-"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <StatusBadge active={soft.Activo} />
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-blue-600" onClick={() => { setModalRecord(soft); setModalMode("view"); setModalOpen(true); }}>
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-emerald-600" onClick={() => { setModalRecord(soft); setModalMode("edit"); setModalOpen(true); }}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-600" onClick={async () => {
-                          const ok = confirm("¿Eliminar este software? Será desactivado.");
-                          if (!ok) return;
-                          try {
-                            const res = await fetch(`/api/software?id=${encodeURIComponent(String(soft.IdSoftware))}`, { method: "DELETE" });
-                            const data = await res.json();
-                            if (!res.ok) throw new Error(data.error || "Error al eliminar");
-                            setMessage("Software desactivado correctamente.");
-                            await loadRecords();
-                          } catch (e: any) {
-                            alert(e.message || "Error al eliminar");
-                          }
-                        }}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
   };
+
+  const searchPlaceholder =
+    filterType === "bienes"
+      ? "Descripción, código..."
+      : filterType === "componentes"
+        ? "Componente, bien..."
+        : "Nombre, tipo...";
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-cyan-500">Registro de inventario</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Descarga el reporte de inventario de bienes. Usa el menú de Reportes para cambiar entre registros de inventario y registros de fichas.
-            </p>
-          </div>
-        </div>
+      <PageHeader
+        title="Registro de inventario"
+        description="Consulta, filtra y exporta registros de inventario. Usa las pestañas para cambiar de sección."
+      />
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          title="Bienes"
+          value={loadingStats ? "..." : (stats?.totalBienes ?? 0)}
+          icon={Boxes}
+          accent="primary"
+        />
+        <StatCard
+          title="Componentes"
+          value={loadingStats ? "..." : (stats?.totalComponentes ?? 0)}
+          icon={Cpu}
+          accent="success"
+        />
+        <StatCard
+          title="Software"
+          value={loadingStats ? "..." : (stats?.totalSoftware ?? 0)}
+          icon={AppWindow}
+          accent="muted"
+        />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {statsItems.map((item) => (
-          <div
-            key={item.label}
-            className={`rounded-2xl border px-4 py-3 text-sm ${item.className}`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className={`font-medium ${item.labelClass || 'text-slate-700'}`}>{item.label}</p>
-              <p className={`text-lg font-semibold ${item.valueClass || ''}`}>{loadingStats ? "..." : item.value}</p>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">{item.description}</p>
-          </div>
-        ))}
-      </div>
-
-      
-
-      <Card className="border border-slate-200 shadow-sm">
+      <Card className="border-border shadow-[var(--shadow-soft)]">
         <CardHeader>
           <CardTitle className="text-base font-semibold">Registros</CardTitle>
           <CardDescription>Consulta y filtra los registros de inventario.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex flex-wrap gap-2">
             {(["bienes", "componentes", "software"] as FilterType[]).map((type) => (
               <Button
                 key={type}
@@ -468,130 +505,108 @@ export default function ReportesInventarioPage() {
                 size="sm"
                 onClick={() => {
                   setFilterType(type);
-                  setSearchTerm("");
-                  setStartDate("");
-                  setEndDate("");
-                  setActiveFilter("todos");
+                  clearFilters();
                 }}
-                className={filterType === type ? "bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white shadow-md" : "hover:border-blue-400 hover:text-blue-600"}
               >
                 {type.charAt(0).toUpperCase() + type.slice(1)}
               </Button>
             ))}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <label className="text-sm font-semibold text-slate-700 block mb-2">Buscar</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <Input
-                  type="text"
-                  className="pl-10 pr-10 rounded-lg shadow-sm border"
-                  placeholder={
-                    filterType === "bienes"
-                      ? "Descripción, código..."
-                      : filterType === "componentes"
-                      ? "Componente, bien..."
-                      : "Nombre, tipo..."
-                  }
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2 text-slate-500">✕</button>}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-slate-700 block mb-2">Desde</label>
+          <FilterBar
+            activeCount={activeFilterCount}
+            onClear={clearFilters}
+            actions={
+              <Button onClick={handleExport} disabled={exporting} className="gap-2">
+                <Download className="size-4" aria-hidden="true" />
+                {exporting
+                  ? "Generando..."
+                  : `Descargar ${filterType.charAt(0).toUpperCase() + filterType.slice(1)}`}
+              </Button>
+            }
+          >
+            <FilterField label="Buscar" htmlFor="inventario-search">
+              <IconInput
+                id="inventario-search"
+                icon={Search}
+                placeholder={searchPlaceholder}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </FilterField>
+            <FilterField label="Desde" htmlFor="inventario-start">
               <Input
+                id="inventario-start"
                 type="date"
-                className="rounded-lg shadow-sm border"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-slate-700 block mb-2">Hasta</label>
+            </FilterField>
+            <FilterField label="Hasta" htmlFor="inventario-end">
               <Input
+                id="inventario-end"
                 type="date"
-                className="rounded-lg shadow-sm border"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
-            </div>
-
-            <div>
-              <label className="text-sm font-semibold text-slate-700 block mb-2">Estado</label>
+            </FilterField>
+            <FilterField label="Estado" htmlFor="inventario-estado">
               <select
+                id="inventario-estado"
                 value={activeFilter}
-                onChange={(e) => setActiveFilter(e.target.value as "todos" | "activos" | "inactivos")}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 shadow-sm"
+                onChange={(e) =>
+                  setActiveFilter(e.target.value as "todos" | "activos" | "inactivos")
+                }
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 <option value="todos">Todos</option>
                 <option value="activos">Activos</option>
                 <option value="inactivos">Inactivos</option>
               </select>
-            </div>
-          </div>
+            </FilterField>
+          </FilterBar>
 
-          <div className="flex justify-end">
-            <Button
-              onClick={handleExport}
-              disabled={exporting}
-              className="gap-2 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white shadow-lg"
-            >
-              <Download className="w-4 h-4" />
-              {exporting ? "Generando..." : `Descargar ${filterType.charAt(0).toUpperCase() + filterType.slice(1)}`}
-            </Button>
-          </div>
+          <div className="surface-panel overflow-hidden">{renderRecordsTable()}</div>
 
-          <div className="border rounded-lg overflow-hidden">
-            {renderRecordsTable()}
-          </div>
-          
-          <div className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Mostrando {filteredRecords.length} de {records.length} registros
-          </div>
+          </p>
         </CardContent>
       </Card>
 
-      {message && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+      {message ? (
+        <div className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-foreground">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-slate-500" />
+            <Sparkles className="size-4 text-muted-foreground" aria-hidden="true" />
             <span>{message}</span>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* Modales para ver/editar */}
-      {modalOpen && filterType === "bienes" && (
+      {modalOpen && filterType === "bienes" ? (
         <BienFormModal
           bien={modalRecord}
           open={modalOpen}
-          onOpenChange={(open) => setModalOpen(open)}
+          onOpenChange={(open: boolean) => setModalOpen(open)}
           readOnly={modalMode === "view"}
         />
-      )}
-      {modalOpen && filterType === "componentes" && (
+      ) : null}
+      {modalOpen && filterType === "componentes" ? (
         <ComponenteFormModal
           componente={modalRecord}
           open={modalOpen}
-          onOpenChange={(open) => setModalOpen(open)}
+          onOpenChange={(open: boolean) => setModalOpen(open)}
           readOnly={modalMode === "view"}
         />
-      )}
-      {modalOpen && filterType === "software" && (
+      ) : null}
+      {modalOpen && filterType === "software" ? (
         <SoftwareFormModal
           software={modalRecord}
           open={modalOpen}
-          onOpenChange={(open) => setModalOpen(open)}
+          onOpenChange={(open: boolean) => setModalOpen(open)}
           readOnly={modalMode === "view"}
         />
-      )}
+      ) : null}
     </div>
   );
 }
-

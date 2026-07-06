@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, Edit, Network, Search, Eye, Power } from "lucide-react";
+import { Plus, Trash2, Edit, Eye, Power } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,10 +18,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { getAreas, getTiposEstacion } from "@/app/actions/catalogs";
 import QuickCreateTipoEstacionModal from "@/components/inventory/QuickCreateTipoEstacionModal";
 import QuickCreateAreaModal from "@/components/inventory/QuickCreateAreaModal";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { DataTable } from "@/components/data-display/DataTable";
+import { TableActionButton, TableRowActions } from "@/components/data-display/TableRowActions";
+import { cn } from "@/lib/utils";
 
 const fetchRedes = async () => {
   const res = await fetch("/api/redes");
@@ -35,7 +40,7 @@ export default function RedesPage() {
   const queryClient = useQueryClient();
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm();
 
-  const { data: redes, isLoading } = useQuery({
+  const { data: redes, isLoading, error } = useQuery({
     queryKey: ["redes"],
     queryFn: fetchRedes,
   });
@@ -104,20 +109,97 @@ export default function RedesPage() {
     }
   }, [ipValue, setValue, isDhcp]);
 
+  const columns = useMemo<ColumnDef<any>[]>(
+    () => [
+      {
+        accessorKey: "DireccionIp",
+        header: "Dirección IP",
+        cell: ({ getValue }) => (
+          <span className="font-medium text-primary">{String(getValue() ?? "-")}</span>
+        ),
+      },
+      {
+        accessorKey: "Vlan",
+        header: "VLAN",
+        cell: ({ getValue }) => String(getValue() ?? "-") || "-",
+      },
+      {
+        accessorKey: "Estacion",
+        header: "Estación",
+        cell: ({ getValue }) => String(getValue() ?? "-") || "-",
+      },
+      {
+        id: "TipoEstacion",
+        header: "Tipo",
+        cell: ({ row }) => row.original.TipoEstacion?.TipoEstacion || "-",
+      },
+      {
+        id: "Area",
+        header: "Área",
+        cell: ({ row }) => row.original.Area?.NombreArea || row.original.NombreArea || "-",
+      },
+      {
+        accessorKey: "DHCP",
+        header: "Modo",
+        cell: ({ getValue }) => {
+          const dhcp = Boolean(getValue());
+          return (
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
+                dhcp
+                  ? "bg-success/10 text-success ring-success/20"
+                  : "bg-primary/10 text-primary ring-primary/20"
+              )}
+            >
+              {dhcp ? "DHCP" : "Estática"}
+            </span>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "Acciones",
+        cell: ({ row }) => {
+          const red = row.original;
+          return (
+            <TableRowActions>
+              <TableActionButton title="Ver" aria-label="Ver red">
+                <Eye className="size-4" />
+              </TableActionButton>
+              <TableActionButton
+                actionVariant="primary"
+                title="Editar"
+                aria-label="Editar red"
+                onClick={() => handleEdit(red)}
+              >
+                <Edit className="size-4" />
+              </TableActionButton>
+              <TableActionButton actionVariant="warning" title="Desactivar" aria-label="Desactivar">
+                <Power className="size-4" />
+              </TableActionButton>
+              <TableActionButton actionVariant="destructive" title="Eliminar" aria-label="Eliminar">
+                <Trash2 className="size-4" />
+              </TableActionButton>
+            </TableRowActions>
+          );
+        },
+      },
+    ],
+    []
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Inventario de Redes (IPs)</h1>
-          <p className="text-slate-500 text-sm">Gestiona las direcciones IP y puntos de red.</p>
-        </div>
-        
-        <Button 
-          onClick={handleNew}
-          className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-900/20 inline-flex items-center justify-center rounded-lg text-sm font-medium h-10 px-4 py-2 transition-all"
-        >
-          <Plus className="mr-2 h-4 w-4" /> Nueva IP
-        </Button>
+      <PageHeader
+        title="Inventario de Redes (IPs)"
+        description="Gestiona las direcciones IP y puntos de red."
+        actions={
+          <Button size="lg" className="gap-2" onClick={handleNew}>
+            <Plus className="size-4" aria-hidden="true" /> Nueva IP
+          </Button>
+        }
+      />
 
         <Dialog open={open} onOpenChange={(val) => {
           setOpen(val);
@@ -126,17 +208,17 @@ export default function RedesPage() {
             reset();
           }
         }}>
-          <DialogContent className="bg-white sm:max-w-2xl">
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-slate-800">
+              <DialogTitle>
                 {editingRed ? "Editar Red / IP" : "Registrar Nueva IP"}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
               <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Modo IP</label>
+                <label className="text-sm font-medium text-foreground">Modo IP</label>
                 <Select value={watch("DHCP") || "false"} onValueChange={(val) => setValue("DHCP", val)}>
-                  <SelectTrigger className="border-slate-200">
+                  <SelectTrigger>
                     <SelectValue placeholder="Seleccionar" />
                   </SelectTrigger>
                   <SelectContent>
@@ -148,21 +230,19 @@ export default function RedesPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Dirección IP *</label>
+                  <label className="text-sm font-medium text-foreground">Dirección IP *</label>
                   <Input 
                     {...register("DireccionIp", { required: !isDhcp ? "La IP es requerida" : false })} 
                     placeholder={isDhcp ? "Asignada por DHCP" : "Ej. 192.168.10.22"} 
-                    className="border-slate-200"
                     disabled={isDhcp}
                   />
                   {errors.DireccionIp && <p className="text-xs text-red-500">{(errors.DireccionIp as any).message}</p>}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">VLAN</label>
+                  <label className="text-sm font-medium text-foreground">VLAN</label>
                   <Input 
                     {...register("Vlan")} 
                     placeholder={isDhcp ? "Auto" : "Ej. 10"} 
-                    className="border-slate-200"
                     disabled={isDhcp}
                   />
                 </div>
@@ -170,23 +250,23 @@ export default function RedesPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Estación / Nombre</label>
-                  <Input {...register("Estacion")} placeholder="Ej. PC-CONTABILIDAD" className="border-slate-200" />
+                  <label className="text-sm font-medium text-foreground">Estación / Nombre</label>
+                  <Input {...register("Estacion")} placeholder="Ej. PC-CONTABILIDAD" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Dirección MAC</label>
-                  <Input {...register("DireccionMac")} placeholder="Ej. AA:BB:CC:DD:EE:FF" className="border-slate-200" />
+                  <label className="text-sm font-medium text-foreground">Dirección MAC</label>
+                  <Input {...register("DireccionMac")} placeholder="Ej. AA:BB:CC:DD:EE:FF" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
-                    <label className="text-sm font-medium text-slate-700">Tipo Estación</label>
+                    <label className="text-sm font-medium text-foreground">Tipo Estación</label>
                     <QuickCreateTipoEstacionModal />
                   </div>
                   <Select value={watch("IdTipoEstacion") ? String(watch("IdTipoEstacion")) : ""} onValueChange={(val) => setValue("IdTipoEstacion", val)}>
-                    <SelectTrigger className="border-slate-200">
+                    <SelectTrigger>
                       <SelectValue placeholder="Seleccionar">{selectedTipoName}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -198,11 +278,11 @@ export default function RedesPage() {
                 </div>
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
-                    <label className="text-sm font-medium text-slate-700">Área</label>
+                    <label className="text-sm font-medium text-foreground">Área</label>
                     <QuickCreateAreaModal />
                   </div>
                   <Select value={watch("IdArea") ? String(watch("IdArea")) : ""} onValueChange={(val) => setValue("IdArea", val)}>
-                    <SelectTrigger className="border-slate-200">
+                    <SelectTrigger>
                       <SelectValue placeholder="Seleccionar">{selectedAreaName}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -215,104 +295,29 @@ export default function RedesPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Observación</label>
-                <Input {...register("Observacion")} placeholder="Ej. Punto de red fallando" className="border-slate-200" />
+                <label className="text-sm font-medium text-foreground">Observación</label>
+                <Input {...register("Observacion")} placeholder="Ej. Punto de red fallando" />
               </div>
 
               <div className="flex justify-end space-x-2 mt-6">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="border-slate-200 text-slate-700 hover:bg-slate-50">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={mutation.isPending}>
+                <Button type="submit" disabled={mutation.isPending}>
                   {mutation.isPending ? "Guardando..." : "Guardar"}
                 </Button>
               </div>
             </form>
           </DialogContent>
         </Dialog>
-      </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {isLoading ? (
-          <div className="p-6 text-center text-slate-500">Cargando redes...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-slate-600">
-              <thead className="text-xs text-slate-700 uppercase bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 font-semibold whitespace-nowrap">Dirección IP</th>
-                  <th className="px-6 py-4 font-semibold whitespace-nowrap">VLAN</th>
-                  <th className="px-6 py-4 font-semibold whitespace-nowrap">Estación</th>
-                  <th className="px-6 py-4 font-semibold whitespace-nowrap">Tipo</th>
-                  <th className="px-6 py-4 font-semibold whitespace-nowrap">Área</th>
-                  <th className="px-6 py-4 font-semibold whitespace-nowrap">Modo</th>
-                  <th className="px-6 py-4 font-semibold whitespace-nowrap">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {redes?.map((red: any) => (
-                  <tr key={red.IdIp} className="bg-white border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-blue-600 whitespace-nowrap">{red.DireccionIp}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{red.Vlan || "-"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{red.Estacion || "-"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{red.TipoEstacion?.TipoEstacion || "-"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{red.Area?.NombreArea || red.NombreArea || "-"}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${red.DHCP ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
-                        {red.DHCP ? "DHCP" : "Estática"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                          title="Ver"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                          onClick={() => handleEdit(red)}
-                          title="Editar"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                          title="Desactivar"
-                        >
-                          <Power className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {redes?.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-slate-500">
-                      No hay redes registradas. Crea una para comenzar.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={redes ?? []}
+        isLoading={isLoading}
+        error={error as Error | null}
+        emptyMessage="No hay redes registradas. Crea una para comenzar."
+      />
     </div>
   );
 }
