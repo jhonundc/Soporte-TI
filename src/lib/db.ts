@@ -65,59 +65,51 @@ function addParams(request: sql.Request, params: Record<string, any>) {
   for (const [key, value] of Object.entries(params)) {
     const lowerKey = key.toLowerCase();
     try {
-      // null / undefined -> send explicit null with inferred type
+      // null / undefined
       if (value === null || value === undefined) {
-        if (lowerKey.includes("fecha")) {
-          request.input(key, sql.Date, null);
-        } else if (lowerKey.includes("activo")) {
-          request.input(key, sql.Bit, null);
-        } else if (lowerKey.includes("id")) {
-          request.input(key, sql.Int, null);
-        } else {
-          request.input(key, sql.VarChar, null);
-        }
+        request.input(key, null);
         continue;
       }
 
-      // Numbers -> Int
+      // Numbers
       if (typeof value === "number") {
         if (!Number.isFinite(value)) {
-          request.input(key, sql.Int, null);
+          request.input(key, null);
         } else {
-          request.input(key, sql.Int, value);
+          request.input(key, value);
         }
         continue;
       }
 
-      // Strings -> try to coerce to the most appropriate type
+      // Strings -> coerce common conventions
       if (typeof value === "string") {
         if (lowerKey.includes("fecha") && !Number.isNaN(Date.parse(value))) {
-          request.input(key, sql.Date, new Date(value));
+          request.input(key, new Date(value));
         } else if (lowerKey.includes("id") && /^\d+$/.test(value)) {
-          request.input(key, sql.Int, parseInt(value, 10));
+          request.input(key, parseInt(value, 10));
         } else if (lowerKey.includes("activo") && /^(true|false)$/i.test(value)) {
-          request.input(key, sql.Bit, value.toLowerCase() === "true");
+          request.input(key, value.toLowerCase() === "true");
         } else {
-          request.input(key, sql.VarChar, value);
+          request.input(key, value);
         }
         continue;
       }
 
       // Date objects
       if (value instanceof Date) {
-        request.input(key, sql.Date, value);
+        request.input(key, value);
         continue;
       }
 
       // Booleans
       if (typeof value === "boolean") {
-        request.input(key, sql.Bit, value);
+        request.input(key, value);
         continue;
       }
 
-      // Buffer / ArrayBuffer -> send as VarChar(JSON) as fallback
+      // Buffer -> send base64 string
       if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
-        request.input(key, sql.VarChar, value.toString("base64"));
+        request.input(key, value.toString("base64"));
         continue;
       }
 
@@ -126,28 +118,23 @@ function addParams(request: sql.Request, params: Record<string, any>) {
         // Detect if caller accidentally passed a mssql type descriptor as the param value
         // A type descriptor created by sql.VarChar(50) will look like { type: [sql.VarChar], length: 50 }
         if ("type" in value && ("length" in value || "precision" in value || "scale" in value)) {
-          // If we receive a raw type descriptor as the value, it's likely a caller mistake.
-          // Log a warning and coerce to a safe pair: use Int for id-like names, otherwise VarChar.
+          // Caller likely passed a raw type descriptor by mistake.
           console.warn(`Param ${key} appears to be a mssql type descriptor; coercing to safe types.`);
-          if (lowerKey.includes("id")) {
-            request.input(key, sql.Int, null);
-          } else {
-            request.input(key, sql.VarChar, null);
-          }
+          request.input(key, null);
           continue;
         }
 
-        // For plain objects, stringify to avoid passing unexpected shapes to the driver
+        // For plain objects, stringify as JSON
         try {
-          request.input(key, sql.VarChar, JSON.stringify(value));
+          request.input(key, JSON.stringify(value));
         } catch (e) {
-          request.input(key, sql.VarChar, String(value));
+          request.input(key, String(value));
         }
         continue;
       }
 
       // Fallback: coerce to string
-      request.input(key, sql.VarChar, String(value));
+      request.input(key, String(value));
     } catch (err) {
       // As a last resort try the original request.input signature and log the error
       try {

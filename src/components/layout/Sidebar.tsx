@@ -46,6 +46,7 @@ const adminMenuItems = [
     subItems: [
       { label: "Generar Ficha Soporte", href: "/soporte/ficha" },
       { label: "Generar Ficha de Baja", href: "/soporte/baja" },
+      { label: "Componentes por Área", href: "/soporte/componentes-por-area" },
     ]
   },
   { icon: Users, label: "Usuarios", href: "/usuarios" },
@@ -97,6 +98,7 @@ const supportMenuItems = [
     subItems: [
       { label: "Generar Ficha Soporte", href: "/soporte/ficha" },
       { label: "Generar Ficha de Baja", href: "/soporte/baja" },
+      { label: "Componentes por Área", href: "/soporte/componentes-por-area" },
     ],
   },
   {

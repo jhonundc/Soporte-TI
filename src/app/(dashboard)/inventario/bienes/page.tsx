@@ -7,9 +7,10 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Edit, Trash2, Eye, Power } from "lucide-react";
+import { Plus, Edit, Trash2, Eye, Power, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import BienFormModal from "@/components/inventory/BienFormModal";
+import BienImportModal from "@/components/inventory/BienImportModal";
 import { useState, useMemo } from "react";
 
 // Función para obtener los bienes
@@ -42,6 +43,7 @@ export default function BienesPage() {
   const [visibleCount, setVisibleCount] = useState(9);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingBien, setEditingBien] = useState<any>(null);
   const [readOnlyMode, setReadOnlyMode] = useState(false);
 
@@ -275,16 +277,26 @@ export default function BienesPage() {
           <p className="text-slate-500 text-sm">Gestión de equipos y bienes institucionales.</p>
         </div>
         {!isSupport && (
-          <Button 
-            onClick={() => {
-              setEditingBien(null);
-              setReadOnlyMode(false);
-              setModalOpen(true);
-            }}
-            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-900/20 inline-flex items-center justify-center rounded-lg text-sm font-medium h-10 px-4 py-2 transition-all"
-          >
-            <Plus className="mr-2 h-4 w-4" /> Nuevo Bien
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-slate-300 text-slate-700 hover:bg-slate-50"
+              onClick={() => setImportModalOpen(true)}
+            >
+              <Upload className="mr-2 h-4 w-4" /> Importar Excel
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingBien(null);
+                setReadOnlyMode(false);
+                setModalOpen(true);
+              }}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-900/20 inline-flex items-center justify-center rounded-lg text-sm font-medium h-10 px-4 py-2 transition-all"
+            >
+              <Plus className="mr-2 h-4 w-4" /> Nuevo Bien
+            </Button>
+          </div>
         )}
       </div>
 
@@ -293,6 +305,14 @@ export default function BienesPage() {
         open={modalOpen} 
         onOpenChange={setModalOpen} 
         readOnly={readOnlyMode}
+      />
+
+      <BienImportModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onImported={() => {
+          queryClient.invalidateQueries({ queryKey: ["bienes"] });
+        }}
       />
 
       <div className="grid gap-3 md:grid-cols-2">
