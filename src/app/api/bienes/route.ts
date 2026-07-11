@@ -10,6 +10,13 @@ import {
   parseSearchParams,
 } from "@/lib/validations";
 
+<<<<<<< HEAD
+function parseNullableInt(value: any): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = typeof value === "number" ? value : parseInt(String(value), 10);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+=======
 // Obtener todos los bienes
 export async function GET() {
   const auth = await authSession();
@@ -20,8 +27,39 @@ export async function GET() {
       `EXEC sp_ConsultaBien @Accion = @Accion`,
       { Accion: "L" }
     );
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
 
-    const bienes = result.recordset.map((row: any) => ({
+async function enrichBienes(baseRows: any[]) {
+  if (!baseRows || baseRows.length === 0) return [];
+
+  const marcasIds = Array.from(new Set(baseRows.map((r: any) => parseNullableInt(r.IdMarca)).filter((v) => v !== null))) as number[];
+  const areasIds = Array.from(new Set(baseRows.map((r: any) => parseNullableInt(r.IdArea)).filter((v) => v !== null))) as number[];
+  const condicionesIds = Array.from(new Set(baseRows.map((r: any) => parseNullableInt(r.IdCondicion)).filter((v) => v !== null))) as number[];
+  const estadosIds = Array.from(new Set(baseRows.map((r: any) => parseNullableInt(r.IdEstadoBien)).filter((v) => v !== null))) as number[];
+  const categoriasIds = Array.from(new Set(baseRows.map((r: any) => parseNullableInt(r.IdCategoria)).filter((v) => v !== null))) as number[];
+
+  const [marcasResult, areasResult, condicionesResult, estadosResult, categoriasResult] = await Promise.all([
+    marcasIds.length ? executeQuery(`SELECT IdMarca, Marca, Activo FROM Marcas WHERE IdMarca IN (${marcasIds.join(",")})`) : Promise.resolve({ recordset: [] }),
+    areasIds.length ? executeQuery(`SELECT IdArea, NombreArea, Piso, Referencia, Activo FROM Areas WHERE IdArea IN (${areasIds.join(",")})`) : Promise.resolve({ recordset: [] }),
+    condicionesIds.length ? executeQuery(`SELECT IdCondicion, Condicion, Activo FROM CondicionesBien WHERE IdCondicion IN (${condicionesIds.join(",")})`) : Promise.resolve({ recordset: [] }),
+    estadosIds.length ? executeQuery(`SELECT IdEstadoBien, EstadoBien, Activo FROM EstadosDelBien WHERE IdEstadoBien IN (${estadosIds.join(",")})`) : Promise.resolve({ recordset: [] }),
+    categoriasIds.length ? executeQuery(`SELECT IdCategoria, CategoriaBien, Activo FROM CategoriasBienes WHERE IdCategoria IN (${categoriasIds.join(",")})`) : Promise.resolve({ recordset: [] }),
+  ]);
+
+  const marcasMap = new Map((marcasResult.recordset || []).map((m: any) => [m.IdMarca, m]));
+  const areasMap = new Map((areasResult.recordset || []).map((a: any) => [a.IdArea, a]));
+  const condicionesMap = new Map((condicionesResult.recordset || []).map((c: any) => [c.IdCondicion, c]));
+  const estadosMap = new Map((estadosResult.recordset || []).map((e: any) => [e.IdEstadoBien, e]));
+  const categoriasMap = new Map((categoriasResult.recordset || []).map((cat: any) => [cat.IdCategoria, cat]));
+
+  return baseRows.map((row: any) => {
+    const marca = row.IdMarca ? marcasMap.get(row.IdMarca) : null;
+    const area = row.IdArea ? areasMap.get(row.IdArea) : null;
+    const condicion = row.IdCondicion ? condicionesMap.get(row.IdCondicion) : null;
+    const estado = row.IdEstadoBien ? estadosMap.get(row.IdEstadoBien) : null;
+    const categoria = row.IdCategoria ? categoriasMap.get(row.IdCategoria) : null;
+
+    return {
       IdBien: row.IdBien,
       CodigoInventario: row.CodigoInventario,
       CodigoPatrimonial: row.CodigoPatrimonial,
@@ -39,41 +77,24 @@ export async function GET() {
       IdUsuarioRegistro: row.IdUsuarioRegistro,
       IdUsuarioModificacion: row.IdUsuarioModificacion,
       Activo: row.Activo,
-      Marca: row.IdMarca
-        ? { IdMarca: row.IdMarca, Marca: row.Marca_Marca, Activo: row.Marca_Activo }
-        : null,
-      Area: row.IdArea
-        ? {
-            IdArea: row.IdArea,
-            NombreArea: row.Area_NombreArea,
-            Piso: row.Area_Piso,
-            Referencia: row.Area_Referencia,
-            Activo: row.Area_Activo,
-          }
-        : null,
-      Condicion: row.IdCondicion
-        ? {
-            IdCondicion: row.IdCondicion,
-            Condicion: row.Condicion_Condicion,
-            Activo: row.Condicion_Activo,
-          }
-        : null,
-      Estado: row.IdEstadoBien
-        ? {
-            IdEstadoBien: row.IdEstadoBien,
-            EstadoBien: row.Estado_EstadoBien,
-            Activo: row.Estado_Activo,
-          }
-        : null,
-      Categoria: row.IdCategoria
-        ? {
-            IdCategoria: row.IdCategoria,
-            CategoriaBien: row.Categoria_CategoriaBien,
-            Activo: row.Categoria_Activo,
-          }
-        : null,
-    }));
+      Marca: marca ? { IdMarca: marca.IdMarca, Marca: marca.Marca, Activo: marca.Activo } : null,
+      Area: area ? { IdArea: area.IdArea, NombreArea: area.NombreArea, Piso: area.Piso, Referencia: area.Referencia, Activo: area.Activo } : null,
+      Condicion: condicion ? { IdCondicion: condicion.IdCondicion, Condicion: condicion.Condicion, Activo: condicion.Activo } : null,
+      Estado: estado ? { IdEstadoBien: estado.IdEstadoBien, EstadoBien: estado.EstadoBien, Activo: estado.Activo } : null,
+      Categoria: categoria ? { IdCategoria: categoria.IdCategoria, CategoriaBien: categoria.CategoriaBien, Activo: categoria.Activo } : null,
+    };
+  });
+}
 
+// Obtener todos los bienes
+export async function GET() {
+  try {
+    const result = await executeQuery(
+      `EXEC sp_ConsultaBien @Accion = @Accion`,
+      { Accion: "T" }
+    );
+
+    const bienes = await enrichBienes(result.recordset || []);
     return NextResponse.json(bienes);
   } catch (error) {
     console.error("Error en GET /api/bienes:", error);
@@ -84,6 +105,10 @@ export async function GET() {
   }
 }
 
+<<<<<<< HEAD
+// Crear un nuevo bien
+=======
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
 export async function POST(request: Request) {
   const session = await adminSession();
   if (guardFailed(session)) return session;

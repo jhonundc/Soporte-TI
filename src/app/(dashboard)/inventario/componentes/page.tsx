@@ -5,6 +5,10 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2, Eye, Power } from "lucide-react";
 import { Input } from "@/components/ui/input";
+<<<<<<< HEAD
+import ComponenteFormModal from "@/components/inventory/ComponenteFormModal";
+import ComponenteImportModal from "@/components/inventory/ComponenteImportModal";
+=======
 import {
   Select,
   SelectContent,
@@ -18,6 +22,7 @@ import { TableRowActions, TableActionButton } from "@/components/data-display/Ta
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FilterBar, FilterField } from "@/components/forms/FilterBar";
 import { SearchableSelect } from "@/components/forms/SearchableSelect";
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
 import { useState, useMemo } from "react";
 import { notify } from "@/lib/feedback/toast";
 import { fetchSessionClient } from "@/lib/auth/session-client";
@@ -61,6 +66,7 @@ export default function ComponentesPage() {
   const isSupport = String(sessionData?.user?.role || "").toLowerCase().includes("soporte");
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingComponente, setEditingComponente] = useState<any>(null);
   const [readOnlyMode, setReadOnlyMode] = useState(false);
 
@@ -273,6 +279,24 @@ export default function ComponentesPage() {
 
   return (
     <div className="space-y-6">
+<<<<<<< HEAD
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Componentes de Bienes</h1>
+          <p className="text-slate-500 text-sm">Gestión de componentes asignados a bienes.</p>
+        </div>
+        {!isSupport && (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setImportModalOpen(true)}
+              className="border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              Importar Excel
+            </Button>
+            <Button
+=======
       <PageHeader
         title="Componentes de Bienes"
         description="Gestión de componentes asignados a bienes."
@@ -281,16 +305,39 @@ export default function ComponentesPage() {
             <Button
               size="lg"
               className="gap-2"
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
               onClick={() => {
                 setEditingComponente(null);
                 setReadOnlyMode(false);
                 setModalOpen(true);
               }}
+<<<<<<< HEAD
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-900/20 inline-flex items-center justify-center rounded-lg text-sm font-medium h-10 px-4 py-2 transition-all"
+            >
+              <Plus className="mr-2 h-4 w-4" /> Nuevo Registro
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <ComponenteImportModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onImported={() => queryClient.invalidateQueries({ queryKey: ["componentes"] })}
+      />
+
+      <ComponenteFormModal
+        componente={editingComponente}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        readOnly={readOnlyMode}
+=======
             >
               <Plus className="size-4" aria-hidden="true" /> Nuevo Registro
             </Button>
           ) : undefined
         }
+>>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
       />
 
       {modalOpen ? (

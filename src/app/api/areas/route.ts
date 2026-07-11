@@ -6,9 +6,9 @@ import { adminSession, authSession, guardFailed } from "@/lib/auth/guards";
 export async function GET() {
   try {
     const result = await executeQuery(
-      "EXEC pro_ObtenerAreasActivas"
+      "SELECT IdArea, NombreArea, Piso, Referencia, Activo FROM Areas ORDER BY NombreArea ASC"
     );
-    return NextResponse.json(result.recordset);
+    return NextResponse.json(result.recordset || []);
   } catch (error) {
     console.error("Error en GET /api/areas:", error);
     return NextResponse.json(
