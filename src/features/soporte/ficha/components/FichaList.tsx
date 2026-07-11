@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type UIEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
 import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
@@ -39,6 +39,8 @@ interface FichaListProps {
   onEdit: (ficha: FichaSoporteRecord) => void;
   onDelete: (id: number) => void;
   onPrint: (ficha: FichaSoporteRecord) => void;
+  onTableScroll?: (event: UIEvent<HTMLDivElement>) => void;
+  tableFooter?: string;
 }
 
 function TicketStatusBadge({ status }: { status?: string | null }) {
@@ -77,6 +79,8 @@ export function FichaList({
   onEdit,
   onDelete,
   onPrint,
+  onTableScroll,
+  tableFooter,
 }: FichaListProps) {
   const areaOptions = useMemo(
     () =>
@@ -254,6 +258,9 @@ export function FichaList({
         error={error}
         emptyMessage="No hay registros"
         tableClassName="text-xs"
+        scrollContainerClassName="max-h-[calc(100vh-22rem)] overflow-y-auto"
+        onScroll={onTableScroll}
+        footer={tableFooter}
       />
     </div>
   );

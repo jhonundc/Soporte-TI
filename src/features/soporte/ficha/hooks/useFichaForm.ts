@@ -25,11 +25,16 @@ type CatalogData = {
 
 export function useFichaForm(
   catalogs: CatalogData,
-  saveMutation: ReturnType<typeof useFichaMutations>["saveMutation"]
+  saveMutation: ReturnType<typeof useFichaMutations>["saveMutation"],
+  onOpenChange?: (open: boolean) => void
 ) {
   const { bienes, estados, sessionData } = catalogs;
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(false);
+  const setOpen = (value: boolean) => {
+    setOpenState(value);
+    onOpenChange?.(value);
+  };
   const [editingFicha, setEditingFicha] = useState<FichaSoporteRecord | null>(null);
   const [lookupOpen, setLookupOpen] = useState(false);
   const [lookupSearch, setLookupSearch] = useState("");

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";import { Button } from "@/components/ui/button";
 import { FileSpreadsheet, Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FichaList } from "@/features/soporte/ficha/components/FichaList";
@@ -15,9 +14,12 @@ import { useFichaForm } from "@/features/soporte/ficha/hooks/useFichaForm";
 import type { FichaSoporteRecord } from "@/features/soporte/ficha/types";
 
 export function FichaPageView() {
-  const catalogs = useFichaCatalogs();
+  const [formOpen, setFormOpen] = useState(false);
+  const catalogs = useFichaCatalogs({ loadFormCatalogs: formOpen });
   const {
     displayFichas,
+    filteredCount,
+    visibleCount,
     isLoading,
     error,
     buscarText,
@@ -30,12 +32,12 @@ export function FichaPageView() {
     setFilterArea,
     activeFilterCount,
     clearFilters,
+    handleTableScroll,
     exportToExcel,
   } = useFichaList();
 
   const { saveMutation, handleDelete } = useFichaMutations();
-  const form = useFichaForm(catalogs, saveMutation);
-
+  const form = useFichaForm(catalogs, saveMutation, setFormOpen);
   const [verOpen, setVerOpen] = useState(false);
   const [viewingFicha, setViewingFicha] = useState<FichaSoporteRecord | null>(null);
   const [printActionOpen, setPrintActionOpen] = useState(false);
@@ -78,7 +80,12 @@ export function FichaPageView() {
         onClearFilters={clearFilters}
         prioridades={catalogs.prioridades}
         areas={catalogs.areas}
-        onView={(ficha) => {
+        onTableScroll={handleTableScroll}
+        tableFooter={
+          !isLoading && filteredCount > 0
+            ? `Mostrando ${Math.min(visibleCount, filteredCount)} de ${filteredCount} fichas`
+            : undefined
+        }        onView={(ficha) => {
           setViewingFicha(ficha);
           setVerOpen(true);
         }}

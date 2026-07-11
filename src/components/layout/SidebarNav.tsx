@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
   Boxes,
@@ -12,12 +11,12 @@ import {
   BarChart,
   Users,
   Settings,
-  ChevronDown,
+  ChevronLeft,
   LogOut,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fetchSessionClient } from "@/lib/auth/session-client";
+import { useSession } from "@/lib/hooks/useSession";
 import { Button } from "@/components/ui/button";
 
 export type SidebarMenuItem = {
@@ -120,10 +119,10 @@ interface SidebarNavProps {
 
 const navItemClass = (active: boolean) =>
   cn(
-    "group flex w-full items-center rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150",
+    "group flex w-full items-center rounded-lg px-3 py-2.5 text-[0.9375rem] font-medium leading-snug transition-all duration-150",
     active
       ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[var(--shadow-soft)]"
-      : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
   );
 
 export function SidebarNav({
@@ -136,14 +135,12 @@ export function SidebarNav({
   const [openSubMenus, setOpenSubMenus] = useState<string[]>([]);
   const [menuItems, setMenuItems] = useState(adminMenuItems);
 
+  const { data: sessionData } = useSession();
+
   useEffect(() => {
-    fetchSessionClient()
-      .then((data) => {
-        const role = String(data?.user?.role || "").toLowerCase();
-        setMenuItems(role.includes("soporte") ? supportMenuItems : adminMenuItems);
-      })
-      .catch(() => {});
-  }, []);
+    const role = String(sessionData?.user?.role || "").toLowerCase();
+    setMenuItems(role.includes("soporte") ? supportMenuItems : adminMenuItems);
+  }, [sessionData]);
 
   useEffect(() => {
     const activeParent = menuItems.find(
@@ -170,7 +167,7 @@ export function SidebarNav({
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2.5 py-4">
         {menuItems.map((item) => {
           const hasSubItems = !!item.subItems;
           const isSubMenuOpen = openSubMenus.includes(item.label);
@@ -194,14 +191,14 @@ export function SidebarNav({
                   className={cn(navItemClass(Boolean(isActive && !isSubMenuOpen)), "justify-between")}
                 >
                   <div className="flex min-w-0 items-center">
-                    <item.icon className="size-[1.125rem] shrink-0" aria-hidden="true" />
+                    <item.icon className="size-5 shrink-0" aria-hidden="true" />
                     {!collapsed ? <span className="ml-3 truncate">{item.label}</span> : null}
                   </div>
                   {!collapsed ? (
-                    <ChevronDown
+                    <ChevronLeft
                       className={cn(
-                        "size-4 shrink-0 transition-transform duration-150",
-                        isSubMenuOpen && "rotate-180"
+                        "size-4 shrink-0 transition-transform duration-200 ease-out",
+                        isSubMenuOpen && "-rotate-90"
                       )}
                       aria-hidden="true"
                     />
@@ -214,61 +211,55 @@ export function SidebarNav({
                   className={navItemClass(Boolean(isActive))}
                   title={collapsed ? item.label : undefined}
                 >
-                  <item.icon className="size-[1.125rem] shrink-0" aria-hidden="true" />
-                  {!collapsed ? (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="ml-3 truncate"
-                    >
-                      {item.label}
-                    </motion.span>
-                  ) : null}
+                  <item.icon className="size-5 shrink-0" aria-hidden="true" />
+                  {!collapsed ? <span className="ml-3 truncate">{item.label}</span> : null}
                 </Link>
               )}
 
-              <AnimatePresence>
-                {hasSubItems && isSubMenuOpen && !collapsed ? (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="ml-4 space-y-0.5 overflow-hidden border-l border-sidebar-border pl-3"
-                  >
-                    {item.subItems!.map((subItem) => {
-                      const isSubActive = pathname === subItem.href;
-                      return (
-                        <Link
-                          key={subItem.href}
-                          href={subItem.href}
-                          onClick={onNavigate}
-                          className={cn(
-                            "block rounded-md px-2.5 py-1.5 text-sm transition-colors duration-150",
-                            isSubActive
-                              ? "font-medium text-sidebar-primary"
-                              : "text-sidebar-muted hover:text-sidebar-accent-foreground"
-                          )}
-                        >
-                          {subItem.label}
-                        </Link>
-                      );
-                    })}
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
+              {hasSubItems && !collapsed ? (
+                <div
+                  className={cn(
+                    "grid transition-[grid-template-rows] duration-200 ease-out",
+                    isSubMenuOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                  )}
+                >
+                  <div className="overflow-hidden">
+                    <div className="ml-4 space-y-0.5 border-l border-sidebar-border pl-3 pt-0.5">
+                      {item.subItems!.map((subItem) => {
+                        const isSubActive = pathname === subItem.href;
+                        return (
+                          <Link
+                            key={subItem.href}
+                            href={subItem.href}
+                            onClick={onNavigate}
+                            className={cn(
+                              "block rounded-md px-2.5 py-2 text-[0.875rem] leading-snug transition-colors duration-150",
+                              isSubActive
+                                ? "font-semibold text-sidebar-primary"
+                                : "text-sidebar-foreground/65 hover:text-sidebar-accent-foreground"
+                            )}
+                          >
+                            {subItem.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           );
         })}
       </nav>
 
-      <div className="border-t border-sidebar-border p-2">
+      <div className="border-t border-sidebar-border p-2.5">
         <Button
           type="button"
           variant="ghost"
           onClick={handleLogout}
-          className="w-full justify-start text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="h-auto w-full justify-start px-3 py-2.5 text-[0.9375rem] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
-          <LogOut className="size-[1.125rem] shrink-0" aria-hidden="true" />
+          <LogOut className="size-5 shrink-0" aria-hidden="true" />
           {!collapsed ? <span className="ml-3">Cerrar sesión</span> : null}
         </Button>
       </div>

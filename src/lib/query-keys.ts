@@ -34,6 +34,8 @@ export const queryKeys = {
     tiposSoftware: ["tipos-software"] as const,
     softwareCatalogo: ["software-catalogo"] as const,
     tiposAsignacionSoftware: ["tipos-asignacion-software"] as const,
+    prioridades: ["prioridades"] as const,
+    tiposBien: ["tiposBien"] as const,
   },
 } as const;
 
