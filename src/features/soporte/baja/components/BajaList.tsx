@@ -198,7 +198,7 @@ export function BajaList({
           <IconInput
             id="search-baja"
             icon={Search}
-            placeholder="Nº ficha, patrimonial, responsable..."
+            placeholder="Buscar por N° de ficha..."
             value={buscarText}
             onChange={(event) => onBuscarChange(event.target.value)}
           />

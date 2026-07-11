@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const REPORTES_TABS = [
-  { label: "Resumen", href: "/reportes" },
   { label: "Inventario", href: "/reportes/inventario" },
   { label: "Fichas", href: "/reportes/fichas" },
 ] as const;
@@ -17,10 +16,7 @@ export function ReportesTabs() {
     <div className="border-b border-border">
       <nav aria-label="Secciones de reportes" className="-mb-px flex gap-1 overflow-x-auto">
         {REPORTES_TABS.map((tab) => {
-          const isActive =
-            tab.href === "/reportes"
-              ? pathname === "/reportes"
-              : pathname.startsWith(tab.href);
+          const isActive = pathname.startsWith(tab.href);
 
           return (
             <Link

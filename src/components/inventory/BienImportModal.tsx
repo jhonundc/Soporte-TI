@@ -1079,6 +1079,49 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
               </div>
             </div>
           )}
+
+          {!!results.length && (
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
+                <p className="text-sm font-semibold text-slate-800">Resultado de importación</p>
+              </div>
+              <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
+                <table className="w-full text-sm leading-tight">
+                  <thead className="bg-slate-100 text-slate-700 sticky top-0">
+                    <tr>
+                      <th className="text-left px-2 py-1.5">Fila</th>
+                      <th className="text-left px-2 py-1.5">Cód. Inventario</th>
+                      <th className="text-left px-2 py-1.5">Estado</th>
+                      <th className="text-left px-2 py-1.5">Mensaje</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.map((r, idx) => (
+                      <tr
+                        key={`${r.Fila}-${r.CodigoInventario || "-"}-${idx}`}
+                        className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60"
+                      >
+                        <td className="px-2 py-1">{r.Fila}</td>
+                        <td className="px-2 py-1">{r.CodigoInventario || "-"}</td>
+                        <td className="px-2 py-1">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              r.Estado === "OK"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {r.Estado}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1">{r.Mensaje || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

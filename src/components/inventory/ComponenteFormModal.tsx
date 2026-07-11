@@ -28,7 +28,6 @@ const componenteSchema = z.object({
   IdBienComponente: z.string().optional(),
   IdBien: z.string().min(1, "El bien es requerido"),
   IdComponente: z.string().min(1, "El componente es requerido"),
-  TipoEquipo: z.string().max(100).optional(),
   DescripcionModelo: z.string().max(200).optional(),
   Marca: z.string().max(100).optional(),
   Serie: z.string().max(100).optional(),
@@ -70,11 +69,13 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
   });
 
   const selectedMarca = watch("Marca");
+  const codigoPatrimonialValue = watch("CodigoPatrimonial");
+  const idBienValue = watch("IdBien");
 
   const { data: bienes } = useQuery({
     queryKey: ["bienesSelect"],
     queryFn: async () => {
-      const res = await fetch("/api/bienes");
+      const res = await fetch("/api/bienes?includeInactive=true");
       if (!res.ok) throw new Error("Error al cargar los bienes");
       return res.json();
     },
@@ -83,7 +84,7 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
   const { data: componentesCatalog } = useQuery({
     queryKey: ["componentesCatalog"],
     queryFn: async () => {
-      const res = await fetch("/api/componentes?catalog=true");
+      const res = await fetch("/api/componentes-catalogo");
       if (!res.ok) throw new Error("Error al cargar los componentes");
       return res.json();
     },
@@ -116,32 +117,64 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
     },
   });
 
-  const { data: categorias } = useQuery({
-    queryKey: ["categoriasSelect"],
-    queryFn: async () => {
-      const res = await fetch("/api/categorias");
-      if (!res.ok) throw new Error("Error al cargar las categorías");
-      return res.json();
-    },
-  });
-
   const selectedMarcaName =
     marcas?.find((m: { IdMarca: number; Marca: string }) => String(m.IdMarca) === String(selectedMarca))
       ?.Marca || selectedMarca || "";
 
-  const selectedBienName = bienes?.find(
-    (b: any) => String(b.IdBien) === watch("IdBien")
-  )?.Descripcion;
-
+  const selectedBien = bienes?.find((b: any) => String(b.IdBien) === watch("IdBien"));
   const selectedComponenteName = componentesCatalog?.find(
     (c: any) => String(c.IdComponente) === watch("IdComponente")
   )?.NombreComponente;
 
   const selectedAreaName = watch("UbicacionFisica") || "";
-  const selectedTipoName = watch("TipoEquipo") || "";
   const selectedEstadoName = watch("EstadoEquipo") || "";
 
+  const normalizarCodigo = (value: unknown) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+
+  const buscarBienPorCodigoPatrimonial = (codigo: string) => {
+    const normalizedCode = normalizarCodigo(codigo);
+    if (!normalizedCode || !Array.isArray(bienes)) {
+      if (watch("IdBien")) {
+        setValue("IdBien", "");
+      }
+      return;
+    }
+
+    const bienEncontrado = bienes.find((b: any) => {
+      const codigoPatrimonial = normalizarCodigo(b.CodigoPatrimonial);
+      const codigoInventario = normalizarCodigo(b.CodigoInventario);
+      return codigoPatrimonial === normalizedCode || codigoInventario === normalizedCode;
+    });
+
+    if (bienEncontrado) {
+      setValue("IdBien", String(bienEncontrado.IdBien));
+      setValue("CodigoPatrimonial", String(bienEncontrado.CodigoPatrimonial ?? ""));
+      return;
+    }
+
+    setValue("IdBien", "");
+  };
+
+  const codigoPatrimonialValido = Boolean(
+    codigoPatrimonialValue &&
+    Array.isArray(bienes) &&
+    bienes.some((b: any) => {
+      const codigoPatrimonial = normalizarCodigo(b.CodigoPatrimonial);
+      const codigoInventario = normalizarCodigo(b.CodigoInventario);
+      return codigoPatrimonial === normalizarCodigo(codigoPatrimonialValue) || codigoInventario === normalizarCodigo(codigoPatrimonialValue);
+    })
+  );
+
   useEffect(() => {
+    if (open && selectedBien?.CodigoPatrimonial) {
+      setValue("CodigoPatrimonial", selectedBien.CodigoPatrimonial);
+      return;
+    }
+
     if (open) {
       if (componente) {
         // Si tenemos IdBienComponente, obtener la versión más reciente del servidor
@@ -157,7 +190,6 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
                     IdBienComponente: source.IdBienComponente ? String(source.IdBienComponente) : "",
                     IdBien: source.IdBien ? String(source.IdBien) : "",
                     IdComponente: source.IdComponente ? String(source.IdComponente) : "",
-                    TipoEquipo: source.TipoEquipo || "",
                     DescripcionModelo: source.DescripcionModelo || "",
                     Marca: typeof source.Marca === "object" ? source.Marca?.Marca || "" : source.Marca || "",
                     Serie: source.Serie || "",
@@ -185,7 +217,6 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
             IdBienComponente: componente.IdBienComponente ? String(componente.IdBienComponente) : "",
             IdBien: componente.IdBien ? String(componente.IdBien) : "",
             IdComponente: componente.IdComponente ? String(componente.IdComponente) : "",
-            TipoEquipo: componente.TipoEquipo || "",
             DescripcionModelo: componente.DescripcionModelo || "",
             Marca: typeof componente.Marca === "object" ? componente.Marca?.Marca || "" : componente.Marca || "",
             Serie: componente.Serie || "",
@@ -206,7 +237,6 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
           IdBienComponente: "",
           IdBien: "",
           IdComponente: "",
-          TipoEquipo: "",
           DescripcionModelo: "",
           Marca: "",
           Serie: "",
@@ -223,7 +253,7 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
         });
       }
     }
-  }, [open, componente, reset]);
+  }, [open, componente, reset, selectedBien, setValue]);
 
   const mutation = useMutation({
     mutationFn: async (data: ComponenteFormValues) => {
@@ -257,6 +287,12 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
 
   const onSubmit = (data: ComponenteFormValues) => {
     if (readOnly) return;
+
+    if (data.CodigoPatrimonial && !codigoPatrimonialValido) {
+      notify.fromError(new Error("El código patrimonial ingresado no está registrado en bienes"));
+      return;
+    }
+
     mutation.mutate(data);
   };
 
@@ -271,26 +307,6 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
           <input type="hidden" {...register("IdBienComponente")} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground">Bien *</label>
-              <Select
-                value={watch("IdBien") || ""}
-                onValueChange={(val) => setValue("IdBien", val as any)}
-                disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar bien">{selectedBienName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {bienes?.map((b: any) => (
-                    <SelectItem key={b.IdBien} value={String(b.IdBien)}>
-                      {b.Descripcion} {b.CodigoInventario ? `(${b.CodigoInventario})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.IdBien && <p className="text-xs text-destructive">{errors.IdBien.message}</p>}
-            </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Componente *</label>
               <Select
@@ -310,6 +326,23 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
                 </SelectContent>
               </Select>
               {errors.IdComponente && <p className="text-xs text-destructive">{errors.IdComponente.message}</p>}
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">Código patrimonial *</label>
+              <Input
+                {...register("CodigoPatrimonial")}
+                placeholder="Ej. BP-001"
+                readOnly={readOnly}
+                onChange={(e) => {
+                  setValue("CodigoPatrimonial", e.target.value);
+                  buscarBienPorCodigoPatrimonial(e.target.value);
+                }}
+                onBlur={(e) => buscarBienPorCodigoPatrimonial(e.target.value)}
+              />
+              {errors.CodigoPatrimonial && <p className="text-xs text-destructive">{errors.CodigoPatrimonial.message}</p>}
+              {!readOnly && codigoPatrimonialValue && !codigoPatrimonialValido && (
+                <p className="text-xs text-destructive">El código patrimonial ingresado no está registrado en bienes.</p>
+              )}
             </div>
           </div>
 
@@ -357,14 +390,6 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground">Código Patrimonial</label>
-              <Input
-                {...register("CodigoPatrimonial")}
-                placeholder="Ej. CP-0001"
-                readOnly={readOnly}
-              />
-            </div>
-            <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Cantidad *</label>
               <Input
                 type="number"
@@ -373,6 +398,7 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
               />
               {errors.Cantidad && <p className="text-xs text-destructive">{errors.Cantidad.message}</p>}
             </div>
+            <div />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -444,25 +470,6 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground">Tipo Equipo</label>
-              <Select
-                value={watch("TipoEquipo") || ""}
-                onValueChange={(val) => setValue("TipoEquipo", val as any)}
-                disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar tipo">{selectedTipoName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {categorias?.map((cat: any) => (
-                    <SelectItem key={cat.IdCategoria} value={cat.CategoriaBien}>
-                      {cat.CategoriaBien}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Estado del Equipo</label>
               <Select
                 value={watch("EstadoEquipo") || ""}
@@ -481,6 +488,7 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
                 </SelectContent>
               </Select>
             </div>
+            <div />
           </div>
 
           <div className="space-y-1">

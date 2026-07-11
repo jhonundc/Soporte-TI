@@ -193,7 +193,7 @@ export function FichaList({
           <IconInput
             id="search-ficha"
             icon={Search}
-            placeholder="Código, patrimonial, responsable..."
+            placeholder="Buscar por N° de ficha..."
             value={buscarText}
             onChange={(event) => onBuscarChange(event.target.value)}
           />

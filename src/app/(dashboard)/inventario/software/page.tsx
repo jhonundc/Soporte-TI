@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, type UIEvent } from "react";
+import { useState, useMemo, useDeferredValue, type UIEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Edit, Trash2, Eye, Power } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Eye, Power, Upload } from "lucide-react";
 import { SoftwareFormModal } from "@/lib/lazy/inventory-modals";
 import { DataTable } from "@/components/data-display/DataTable";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
@@ -22,6 +22,8 @@ import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import { IconInput } from "@/components/forms/IconInput";
 import { notify } from "@/lib/feedback/toast";
 import { fetchSessionClient } from "@/lib/auth/session-client";
+import SoftwareImportModal from "@/components/inventory/SoftwareImportModal";
+import { queryKeys } from "@/lib/query-keys";
 
 const ESTADOS_LICENCIA = ["Vigente", "Vencida", "Suspendida"] as const;
 
@@ -57,27 +59,32 @@ export default function SoftwarePage() {
   const [filterTipoSoftware, setFilterTipoSoftware] = useState("");
   const [filterEstadoLicencia, setFilterEstadoLicencia] = useState("");
   const [filterTipoLicencia, setFilterTipoLicencia] = useState("");
+  const deferredSoftwareSearchTerm = useDeferredValue(softwareSearchTerm);
+  const deferredFilterTipoSoftware = useDeferredValue(filterTipoSoftware);
+  const deferredFilterEstadoLicencia = useDeferredValue(filterEstadoLicencia);
+  const deferredFilterTipoLicencia = useDeferredValue(filterTipoLicencia);
 
   const { data: software, isLoading, error } = useQuery({
-    queryKey: ["software"],
+    queryKey: queryKeys.software(),
     queryFn: fetchSoftware,
   });
   const { data: tiposSoftware } = useQuery({
-    queryKey: ["tipos-software"],
+    queryKey: queryKeys.catalogs.tiposSoftware,
     queryFn: fetchTiposSoftware,
   });
   const { data: tiposLicencia } = useQuery({
-    queryKey: ["tipos-licencia"],
+    queryKey: queryKeys.catalogs.tiposLicencia,
     queryFn: fetchTiposLicencia,
   });
   const { data: sessionData } = useQuery({
-    queryKey: ["session"],
+    queryKey: queryKeys.session(),
     queryFn: fetchSessionClient,
   });
   const isSupport = String(sessionData?.user?.role || "").toLowerCase().includes("soporte");
 
   const [visibleCount, setVisibleCount] = useState(12);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingSoftware, setEditingSoftware] = useState<any>(null);
   const [readOnlyMode, setReadOnlyMode] = useState(false);
 
@@ -161,7 +168,7 @@ export default function SoftwarePage() {
 
   const filteredSoftware = useMemo(() => {
     if (!software) return [];
-    const term = softwareSearchTerm.toLowerCase().trim();
+    const term = deferredSoftwareSearchTerm.toLowerCase().trim();
 
     return software.filter((item: any) => {
       const matchesSearch =
@@ -173,24 +180,24 @@ export default function SoftwarePage() {
         String(item.VersionSoftware || "").toLowerCase().includes(term);
 
       const matchesTipo =
-        !filterTipoSoftware ||
-        String(item.TipoSoftware || "").toLowerCase() === filterTipoSoftware.toLowerCase();
+        !deferredFilterTipoSoftware ||
+        String(item.TipoSoftware || "").toLowerCase() === deferredFilterTipoSoftware.toLowerCase();
       const estadoNormalizado = normalizeEstadoLicencia(item.EstadoLicencia);
       const matchesEstado =
-        !filterEstadoLicencia ||
-        estadoNormalizado.toLowerCase() === filterEstadoLicencia.toLowerCase();
+        !deferredFilterEstadoLicencia ||
+        estadoNormalizado.toLowerCase() === deferredFilterEstadoLicencia.toLowerCase();
       const matchesLicencia =
-        !filterTipoLicencia ||
-        String(item.TipoLicencia || "").toLowerCase() === filterTipoLicencia.toLowerCase();
+        !deferredFilterTipoLicencia ||
+        String(item.TipoLicencia || "").toLowerCase() === deferredFilterTipoLicencia.toLowerCase();
 
       return matchesSearch && matchesTipo && matchesEstado && matchesLicencia;
     });
   }, [
     software,
-    softwareSearchTerm,
-    filterTipoSoftware,
-    filterEstadoLicencia,
-    filterTipoLicencia,
+    deferredSoftwareSearchTerm,
+    deferredFilterTipoSoftware,
+    deferredFilterEstadoLicencia,
+    deferredFilterTipoLicencia,
   ]);
 
   const displayedSoftware = useMemo(
@@ -328,17 +335,27 @@ export default function SoftwarePage() {
         description="Registro, edición y seguimiento de licencias de software."
         actions={
           !isSupport ? (
-            <Button
-              size="lg"
-              className="gap-2"
-              onClick={() => {
-                setEditingSoftware(null);
-                setReadOnlyMode(false);
-                setModalOpen(true);
-              }}
-            >
-              <Plus className="size-4" aria-hidden="true" /> Nuevo Software
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                onClick={() => setImportModalOpen(true)}
+              >
+                <Upload className="size-4" aria-hidden="true" /> Importar Excel
+              </Button>
+              <Button
+                size="lg"
+                className="gap-2"
+                onClick={() => {
+                  setEditingSoftware(null);
+                  setReadOnlyMode(false);
+                  setModalOpen(true);
+                }}
+              >
+                <Plus className="size-4" aria-hidden="true" /> Nuevo Software
+              </Button>
+            </div>
           ) : undefined
         }
       />
@@ -351,6 +368,14 @@ export default function SoftwarePage() {
           readOnly={readOnlyMode}
         />
       ) : null}
+
+      <SoftwareImportModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onImported={() => {
+          queryClient.invalidateQueries({ queryKey: ["software"] });
+        }}
+      />
 
       <FilterBar
         fieldsClassName="lg:grid-cols-4"

@@ -6,35 +6,9 @@ import { adminSession, authSession, guardFailed } from "@/lib/auth/guards";
 export async function GET(request: Request) {
   try {
     const [bienesResult, componentesResult, softwareResult, countsResult, areaResult, mesResult, diaResult] = await Promise.all([
-<<<<<<< HEAD
       executeQuery(`EXEC sp_ConsultaBien @Accion = @Accion`, { Accion: "T" }).catch(() => ({ recordset: [] })),
       executeQuery(`EXEC sp_ConsultaBienComponente @Accion = @Accion`, { Accion: "L" }).catch(() => ({ recordset: [] })),
       executeQuery(`SELECT IdSoftware FROM BienSoftware`).catch(() => ({ recordset: [] })),
-=======
-      executeQuery(`EXEC sp_ConsultaBien @Accion = @Accion`, { Accion: "L" }),
-      executeQuery(`EXEC sp_ConsultaBienComponente @Accion = @Accion`, { Accion: "L" }),
-      executeQuery(
-        `EXEC sp_ConsultaSoftware
-          @Accion = @Accion,
-          @IdSoftware = @IdSoftware,
-          @NombreSoftware = @NombreSoftware,
-          @TipoSoftware = @TipoSoftware,
-          @VersionSoftware = @VersionSoftware,
-          @ProveedorEntidad = @ProveedorEntidad,
-          @TipoLicencia = @TipoLicencia,
-          @EstadoLicencia = @EstadoLicencia`,
-        {
-          Accion: "L",
-          IdSoftware: null,
-          NombreSoftware: null,
-          TipoSoftware: null,
-          VersionSoftware: null,
-          ProveedorEntidad: null,
-          TipoLicencia: null,
-          EstadoLicencia: null,
-        }
-      ),
->>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
       executeQuery(`
         SELECT
           (SELECT COUNT(*) FROM BajasBienes) AS totalBajas,
@@ -93,17 +67,10 @@ export async function GET(request: Request) {
     });
 
     // Formatear soporte por mes
-<<<<<<< HEAD
     const soportePorMes = mesResult.recordset?.map((row: any) => ({
       label: row.label,
       Fichas: row.Fichas
     })) || [];
-=======
-    const soportePorMes = mesResult.recordset.map((row: { label: string; Fichas: number }) => {
-      const [año, mes] = String(row.label).split("-").map(Number);
-      return { año: año || 0, mes: mes || 0, cantidad: row.Fichas ?? 0 };
-    });
->>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
 
     // Formatear soporte por día (ordenar cronológicamente para el gráfico)
     const soportePorDia = (diaResult.recordset || [])

@@ -39,5 +39,9 @@ export const bajaDeleteQuerySchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
+export const bajaListQuerySchema = z.object({
+  numeroFicha: nullableString.optional(),
+});
+
 export type BajaCreateApiInput = z.infer<typeof bajaCreateApiSchema>;
 export type BajaUpdateApiInput = z.infer<typeof bajaUpdateApiSchema>;

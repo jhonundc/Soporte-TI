@@ -4,27 +4,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { bajaService } from "@/services/baja.service";
-import type { BajaRecord } from "@/features/soporte/baja/types";
-
-function matchesSearch(baja: BajaRecord, term: string): boolean {
-  const fields = [
-    baja.NumeroFichaBaja,
-    baja.Bien?.Descripcion,
-    baja.Bien?.CodigoPatrimonial,
-    baja.Bien?.CodigoInventario,
-    baja.UnidadOrganica,
-    baja.Estado?.EstadoBien,
-    baja.Condicion?.Condicion,
-    baja.Fundamentacion,
-    baja.Recomendacion,
-    baja.Responsable,
-    baja.CausalBaja,
-    baja.UsuarioRegistro?.Nombres,
-    baja.UsuarioRegistro?.Usuario,
-  ];
-
-  return fields.some((field) => String(field || "").toLowerCase().includes(term));
-}
 
 export function useBajaList() {
   const [buscarText, setBuscarText] = useState("");
@@ -32,17 +11,16 @@ export function useBajaList() {
   const [filterCondicion, setFilterCondicion] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
 
+  const numeroFichaBuscada = buscarText.trim();
+
   const { data: bajas, isLoading, error } = useQuery({
-    queryKey: queryKeys.fichasBaja(),
-    queryFn: bajaService.list,
+    queryKey: queryKeys.fichasBaja(numeroFichaBuscada),
+    queryFn: () => bajaService.list({ numeroFicha: numeroFichaBuscada || undefined }),
   });
 
   const displayBajas = useMemo(() => {
     const list = bajas ?? [];
-    const term = buscarText.toLowerCase().trim();
-
     return list.filter((baja) => {
-      const matchesText = !term || matchesSearch(baja, term);
       const matchesArea =
         !filterArea ||
         String(baja.UnidadOrganica || "").toLowerCase() === filterArea.toLowerCase();
@@ -53,9 +31,9 @@ export function useBajaList() {
         !filterEstado ||
         String(baja.Estado?.EstadoBien || "").toLowerCase() === filterEstado.toLowerCase();
 
-      return matchesText && matchesArea && matchesCondicion && matchesEstado;
+      return matchesArea && matchesCondicion && matchesEstado;
     });
-  }, [bajas, buscarText, filterArea, filterCondicion, filterEstado]);
+  }, [bajas, filterArea, filterCondicion, filterEstado]);
 
   const activeFilterCount =
     Number(Boolean(buscarText.trim())) +

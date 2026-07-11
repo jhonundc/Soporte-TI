@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Sparkles, Eye, Edit, Trash2, Search, Ticket, Clock, Wrench, CheckCircle, TrendingUp } from "lucide-react";
+import { Download, Sparkles, Eye, Edit, Trash2, Search, Ticket, Clock, Wrench, CheckCircle, TrendingUp, Printer, FileSpreadsheet } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/data-display/StatCard";
 import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
@@ -18,6 +18,10 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { exportFichaSoporteExcel } from "@/lib/export/ficha-soporte-excel";
+import { exportFichaBajaExcel } from "@/lib/export/ficha-baja-excel";
+import { printFichaSoporte } from "@/lib/print/ficha-print-template";
+import { openBajaPrintWindow } from "@/lib/print/baja-print-template";
 
 export default function ReportesFichasPage() {
   const router = useRouter();
@@ -99,6 +103,7 @@ export default function ReportesFichasPage() {
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewingRecord, setViewingRecord] = useState<any>(null);
+  const [selectedTipo, setSelectedTipo] = useState<"Soporte" | "Baja">("Soporte");
 
   const loadRecords = async () => {
     setLoading(true);
@@ -150,6 +155,8 @@ export default function ReportesFichasPage() {
   const filteredRecords = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return records.filter((r) => {
+      if (r.tipo !== selectedTipo) return false;
+
       // filtro fecha
       if (startDate) {
         const fecha = r.fechaRegistro ? new Date(r.fechaRegistro) : null;
@@ -184,7 +191,7 @@ export default function ReportesFichasPage() {
 
       return checks.some((c) => String(c || "").toLowerCase().includes(term));
     });
-  }, [records, searchTerm, startDate, endDate]);
+  }, [records, searchTerm, startDate, endDate, selectedTipo]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -240,7 +247,7 @@ export default function ReportesFichasPage() {
       const link = document.createElement("a");
       const objectUrl = window.URL.createObjectURL(blob);
       link.href = objectUrl;
-      link.download = `registros_fichas_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `registros_fichas_${selectedTipo.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -258,7 +265,6 @@ export default function ReportesFichasPage() {
     if (!confirm("¿Está seguro de eliminar esta ficha?")) return;
     try {
       const endpoint = record.tipo === "Baja" ? "/api/soporte/baja" : "/api/soporte/ficha";
-      const idKey = record.tipo === "Baja" ? "IdBaja" : "IdSoporte";
       const res = await fetch(`${endpoint}?id=${record.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error al eliminar");
       await loadRecords();
@@ -266,6 +272,33 @@ export default function ReportesFichasPage() {
     } catch (e) {
       console.error(e);
       setMessage("No se pudo eliminar la ficha");
+    }
+  };
+
+  const handlePrintPdf = (record: any) => {
+    try {
+      if (record.tipo === "Baja") {
+        openBajaPrintWindow(record.raw ?? record, record.raw?.Bien ?? record.bien ?? null);
+      } else {
+        printFichaSoporte(record.raw ?? record);
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage("No se pudo generar el PDF de la ficha");
+    }
+  };
+
+  const handleExportExcelByRecord = async (record: any) => {
+    try {
+      if (record.tipo === "Baja") {
+        await exportFichaBajaExcel(record.raw ?? record, record.raw?.Bien ?? record.bien ?? null);
+      } else {
+        await exportFichaSoporteExcel(record.raw ?? record);
+      }
+      setMessage(`Excel de ficha de ${record.tipo.toLowerCase()} generado correctamente`);
+    } catch (error) {
+      console.error(error);
+      setMessage("No se pudo generar el Excel de la ficha");
     }
   };
 
@@ -327,6 +360,25 @@ export default function ReportesFichasPage() {
         </CardHeader>
 
         <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={selectedTipo === "Soporte" ? "default" : "outline"}
+              onClick={() => setSelectedTipo("Soporte")}
+            >
+              Ficha de soporte
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={selectedTipo === "Baja" ? "default" : "outline"}
+              onClick={() => setSelectedTipo("Baja")}
+            >
+              Ficha de baja
+            </Button>
+          </div>
+
           <FilterBar
             activeCount={
               Number(Boolean(searchTerm)) + Number(Boolean(startDate)) + Number(Boolean(endDate))
@@ -359,7 +411,6 @@ export default function ReportesFichasPage() {
               <thead className="border-b border-border bg-muted/50 text-xs font-semibold tracking-wide text-foreground uppercase">
                 <tr>
                   <th className="px-4 py-3.5 text-left" scope="col">Nº Ficha</th>
-                  <th className="px-4 py-3.5 text-left" scope="col">Tipo</th>
                   <th className="px-4 py-3.5 text-left" scope="col">Responsable</th>
                   <th className="px-4 py-3.5 text-left" scope="col">Dependencia</th>
                   <th className="px-4 py-3.5 text-left" scope="col">Bien</th>
@@ -370,14 +421,13 @@ export default function ReportesFichasPage() {
               </thead>
               <tbody className="divide-y divide-border bg-card">
                 {loading ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Cargando...</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Cargando...</td></tr>
                 ) : filteredRecords.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No hay registros</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">No hay registros</td></tr>
                 ) : (
                   filteredRecords.map((r) => (
                     <tr key={`${r.tipo}-${r.id}`} className="transition-colors duration-150 hover:bg-muted/40">
                       <td className="whitespace-nowrap px-4 py-3.5 font-medium text-foreground">{r.numero || "-"}</td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.tipo || "-"}</td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.responsable || "-"}</td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.dependencia || "-"}</td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.bien?.Descripcion || r.bien?.CodigoInventario || "-"}</td>
@@ -385,6 +435,20 @@ export default function ReportesFichasPage() {
                       <td className="whitespace-nowrap px-4 py-3.5"><StatusBadge status={r.estado} /></td>
                       <td className="whitespace-nowrap px-4 py-3.5">
                         <TableRowActions>
+                          <TableActionButton
+                            title="Imprimir PDF"
+                            aria-label="Imprimir ficha en PDF"
+                            onClick={() => handlePrintPdf(r)}
+                          >
+                            <Printer className="size-4" />
+                          </TableActionButton>
+                          <TableActionButton
+                            title="Descargar Excel"
+                            aria-label="Descargar ficha en Excel"
+                            onClick={() => void handleExportExcelByRecord(r)}
+                          >
+                            <FileSpreadsheet className="size-4" />
+                          </TableActionButton>
                           <TableActionButton
                             title="Ver"
                             aria-label="Ver ficha"

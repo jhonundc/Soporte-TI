@@ -18,9 +18,9 @@ export const queryKeys = {
 
   software: (search = "") => ["software", search] as const,
 
-  fichasSoporte: () => ["fichasSoporte"] as const,
+  fichasSoporte: (numeroFicha = "") => ["fichasSoporte", numeroFicha] as const,
 
-  fichasBaja: () => ["fichasBaja"] as const,
+  fichasBaja: (numeroFicha = "") => ["fichasBaja", numeroFicha] as const,
 
   catalogs: {
     marcas: ["marcas"] as const,
@@ -28,6 +28,7 @@ export const queryKeys = {
     areas: ["areas"] as const,
     categorias: ["categorias"] as const,
     proveedores: ["proveedores"] as const,
+    componentes: ["componentes-catalogo"] as const,
     condiciones: ["condicionesList"] as const,
     estados: ["estadosList"] as const,
     tiposLicencia: ["tipos-licencia"] as const,

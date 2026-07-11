@@ -105,11 +105,10 @@ export function CatalogCrudPage({ config }: CatalogCrudPageProps) {
 
   const toggleMutation = useMutation({
     mutationFn: async (item: Record<string, unknown>) => {
-      const body =
-        config.buildToggleBody?.(item) ?? {
-          [config.idField]: item[config.idField],
-          Activo: !item.Activo,
-        };
+      const body = {
+        [config.idField]: item[config.idField],
+        Activo: !item.Activo,
+      };
       return catalogService.update(config.apiPath, body);
     },
     onSuccess: () => invalidate(),

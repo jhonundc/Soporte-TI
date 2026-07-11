@@ -10,24 +10,11 @@ import {
   parseSearchParams,
 } from "@/lib/validations";
 
-<<<<<<< HEAD
 function parseNullableInt(value: any): number | null {
   if (value === null || value === undefined || value === "") return null;
   const parsed = typeof value === "number" ? value : parseInt(String(value), 10);
   return Number.isInteger(parsed) ? parsed : null;
 }
-=======
-// Obtener todos los bienes
-export async function GET() {
-  const auth = await authSession();
-  if (guardFailed(auth)) return auth;
-
-  try {
-    const result = await executeQuery(
-      `EXEC sp_ConsultaBien @Accion = @Accion`,
-      { Accion: "L" }
-    );
->>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
 
 async function enrichBienes(baseRows: any[]) {
   if (!baseRows || baseRows.length === 0) return [];
@@ -87,14 +74,26 @@ async function enrichBienes(baseRows: any[]) {
 }
 
 // Obtener todos los bienes
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const includeInactive = ["1", "true", "yes"].includes(
+      String(searchParams.get("includeInactive") || "").toLowerCase()
+    );
+
     const result = await executeQuery(
       `EXEC sp_ConsultaBien @Accion = @Accion`,
       { Accion: "T" }
     );
 
-    const bienes = await enrichBienes(result.recordset || []);
+    const sourceRows = includeInactive
+      ? result.recordset || []
+      : (result.recordset || []).filter((row: any) => {
+          const raw = row?.Activo;
+          return raw === true || raw === 1 || raw === "1";
+        });
+
+    const bienes = await enrichBienes(sourceRows);
     return NextResponse.json(bienes);
   } catch (error) {
     console.error("Error en GET /api/bienes:", error);
@@ -105,10 +104,6 @@ export async function GET() {
   }
 }
 
-<<<<<<< HEAD
-// Crear un nuevo bien
-=======
->>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
 export async function POST(request: Request) {
   const session = await adminSession();
   if (guardFailed(session)) return session;

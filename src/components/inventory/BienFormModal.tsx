@@ -23,6 +23,7 @@ import {
 import { useEffect } from "react";
 import { getMarcas, getAreas, getCondiciones, getEstados, getCategorias } from "@/app/actions/catalogs";
 import { notify } from "@/lib/feedback/toast";
+import { queryKeys } from "@/lib/query-keys";
 
 type BienFormValues = BienFormInput;
 
@@ -44,11 +45,11 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
   const selectedCategoria = watch("IdCategoria");
 
   // Consultas para llenar los combos (Server Actions + React Query)
-  const { data: marcas } = useQuery({ queryKey: ["marcas"], queryFn: () => getMarcas() });
-  const { data: areas } = useQuery({ queryKey: ["areas"], queryFn: () => getAreas() });
-  const { data: condiciones } = useQuery({ queryKey: ["condiciones"], queryFn: () => getCondiciones() });
-  const { data: estados } = useQuery({ queryKey: ["estados"], queryFn: () => getEstados() });
-  const { data: categorias } = useQuery({ queryKey: ["categorias"], queryFn: () => getCategorias() });
+  const { data: marcas } = useQuery({ queryKey: queryKeys.catalogs.marcas, queryFn: () => getMarcas() });
+  const { data: areas } = useQuery({ queryKey: queryKeys.catalogs.areas, queryFn: () => getAreas() });
+  const { data: condiciones } = useQuery({ queryKey: queryKeys.catalogs.condiciones, queryFn: () => getCondiciones() });
+  const { data: estados } = useQuery({ queryKey: queryKeys.catalogs.estados, queryFn: () => getEstados() });
+  const { data: categorias } = useQuery({ queryKey: queryKeys.catalogs.categorias, queryFn: () => getCategorias() });
 
   const selectedArea = watch("IdArea");
   const selectedCondicion = watch("IdCondicion");

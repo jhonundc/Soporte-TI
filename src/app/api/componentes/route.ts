@@ -20,20 +20,55 @@ function normalizeComponentesRecord(record: any) {
   return normalized;
 }
 
+function buildBienComponenteParams(action: string, overrides: Record<string, any> = {}): Record<string, unknown> {
+  return {
+    Accion: action,
+    IdBienComponente: null,
+    CodigoPatrimonial: null,
+    IdComponente: null,
+    Observacion: null,
+    IdUsuario: null,
+    Cantidad: null,
+    DescripcionModelo: null,
+    Marca: null,
+    Serie: null,
+    ProcesadorEspecificaciones: null,
+    RAM: null,
+    Almacenamiento: null,
+    SistemaOperativo: null,
+    UbicacionFisica: null,
+    UsuarioAsignado: null,
+    EstadoEquipo: null,
+    ...overrides,
+  };
+}
+
 async function enrichComponentes(records: any[]) {
   if (!records.length) return records;
 
-  const bienIds = Array.from(
-    new Set(records.map((r: any) => parseNullableInt(r.IdBien)).filter((id) => id !== null))
-  );
   const componenteIds = Array.from(
     new Set(records.map((r: any) => parseNullableInt(r.IdComponente)).filter((id) => id !== null))
   );
+  const codigoPatrimoniales = Array.from(
+    new Set(
+      records
+        .map((r: any) => String(r.CodigoPatrimonial ?? "").trim())
+        .filter((value) => value.length > 0)
+    )
+  );
+
+  const bienParams: Record<string, any> = {};
+  const bienPlaceholders = codigoPatrimoniales.map((code, index) => {
+    const key = `bien_${index}`;
+    bienParams[key] = code;
+    return `@${key}`;
+  });
 
   const [bienesResult, componentesResult] = await Promise.all([
-    bienIds.length
+    codigoPatrimoniales.length
       ? executeQuery(
-          `SELECT IdBien, CodigoInventario, Descripcion FROM Bienes WHERE IdBien IN (${bienIds.join(",")})`
+          `SELECT CodigoInventario, CodigoPatrimonial, Descripcion FROM Bienes WHERE CodigoPatrimonial IN (${bienPlaceholders.join(",")})`,
+          bienParams
         )
       : Promise.resolve({ recordset: [] }),
     componenteIds.length
@@ -43,18 +78,23 @@ async function enrichComponentes(records: any[]) {
       : Promise.resolve({ recordset: [] }),
   ]);
 
-  const bienesMap = new Map((bienesResult.recordset || []).map((b: any) => [b.IdBien, b]));
+  const bienesMap = new Map(
+    (bienesResult.recordset || []).map((b: any) => [String(b.CodigoPatrimonial ?? "").trim(), b])
+  );
   const componentesMap = new Map((componentesResult.recordset || []).map((c: any) => [c.IdComponente, c]));
 
-  return records.map((record: any) =>
-    normalizeComponentesRecord({
+  return records.map((record: any) => {
+    const codigoPatrimonial = String(record.CodigoPatrimonial ?? "").trim();
+    const bien = bienesMap.get(codigoPatrimonial);
+
+    return normalizeComponentesRecord({
       ...record,
-      BienDescripcion: bienesMap.get(record.IdBien)?.Descripcion || null,
-      CodigoInventario: bienesMap.get(record.IdBien)?.CodigoInventario || null,
+      BienDescripcion: bien?.Descripcion || null,
+      CodigoInventario: bien?.CodigoInventario || null,
       NombreComponente: componentesMap.get(record.IdComponente)?.NombreComponente || null,
       ComponenteModelo: componentesMap.get(record.IdComponente)?.Modelo || null,
-    })
-  );
+    });
+  });
 }
 
 export async function GET(request: Request) {
@@ -78,19 +118,13 @@ export async function GET(request: Request) {
     }
 
     let action = "L";
-    const params: Record<string, any> = {
-      Accion: action,
-      CodigoPatrimonial: null,
-      Serie: null,
-    };
+    const params = buildBienComponenteParams(action);
 
     if (idBienComponenteParam) {
       action = "I";
-      params.Accion = action;
-      params.IdBienComponente = idBienComponenteParam;
       const single = await executeQuery(
         `EXEC sp_ConsultaBienComponente @Accion = @Accion, @IdBienComponente = @IdBienComponente`,
-        params
+        buildBienComponenteParams(action, { IdBienComponente: idBienComponenteParam })
       );
       const enrichedSingle = await enrichComponentes(single.recordset || []);
       return NextResponse.json(enrichedSingle[0] || null);
@@ -99,18 +133,23 @@ export async function GET(request: Request) {
     if (codigoParam) {
       action = "P";
       params.Accion = action;
-      params.CodigoPatrimonial = codigoParam;
+      (params as Record<string, unknown>).CodigoPatrimonial = codigoParam;
     } else if (serieParam) {
       action = "S";
       params.Accion = action;
-      params.Serie = serieParam;
+      (params as Record<string, unknown>).Serie = serieParam;
     }
 
     const result = await executeQuery(
       `EXEC sp_ConsultaBienComponente
         @Accion = @Accion,
+        @IdBienComponente = @IdBienComponente,
         @CodigoPatrimonial = @CodigoPatrimonial,
-        @Serie = @Serie`,
+        @IdComponente = @IdComponente,
+        @Marca = @Marca,
+        @Serie = @Serie,
+        @UsuarioAsignado = @UsuarioAsignado,
+        @EstadoEquipo = @EstadoEquipo`,
       params
     );
 
@@ -132,9 +171,9 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
-    if (!data.IdBien || !data.IdComponente) {
+    if (!data.IdComponente) {
       return NextResponse.json(
-        { error: "IdBien e IdComponente son requeridos" },
+        { error: "IdComponente es requerido" },
         { status: 400 }
       );
     }
@@ -142,16 +181,14 @@ export async function POST(request: Request) {
     await executeQuery(
       `EXEC sp_MantenimientoBienComponente
         @Accion = @Accion,
-        @IdBien = @IdBien,
+        @CodigoPatrimonial = @CodigoPatrimonial,
         @IdComponente = @IdComponente,
         @Observacion = @Observacion,
         @IdUsuario = @IdUsuario,
         @Cantidad = @Cantidad,
-        @TipoEquipo = @TipoEquipo,
         @DescripcionModelo = @DescripcionModelo,
         @Marca = @Marca,
         @Serie = @Serie,
-        @CodigoPatrimonial = @CodigoPatrimonial,
         @ProcesadorEspecificaciones = @ProcesadorEspecificaciones,
         @RAM = @RAM,
         @Almacenamiento = @Almacenamiento,
@@ -159,18 +196,15 @@ export async function POST(request: Request) {
         @UbicacionFisica = @UbicacionFisica,
         @UsuarioAsignado = @UsuarioAsignado,
         @EstadoEquipo = @EstadoEquipo`,
-      {
-        Accion: "R",
-        IdBien: parseNullableInt(data.IdBien),
+      buildBienComponenteParams("R", {
+        CodigoPatrimonial: data.CodigoPatrimonial && String(data.CodigoPatrimonial).trim() ? String(data.CodigoPatrimonial).trim() : "SIN-CODIGO-PATRIMONIAL",
         IdComponente: parseNullableInt(data.IdComponente),
         Observacion: data.Observacion || null,
         IdUsuario: session.id,
         Cantidad: parseNullableInt(data.Cantidad),
-        TipoEquipo: data.TipoEquipo || null,
         DescripcionModelo: data.DescripcionModelo || null,
         Marca: data.Marca || null,
         Serie: data.Serie || null,
-        CodigoPatrimonial: data.CodigoPatrimonial || null,
         ProcesadorEspecificaciones: data.ProcesadorEspecificaciones || null,
         RAM: data.RAM || null,
         Almacenamiento: data.Almacenamiento || null,
@@ -178,7 +212,7 @@ export async function POST(request: Request) {
         UbicacionFisica: data.UbicacionFisica || null,
         UsuarioAsignado: data.UsuarioAsignado || null,
         EstadoEquipo: data.EstadoEquipo || null,
-      }
+      })
     );
 
     return NextResponse.json({ success: true });
@@ -213,11 +247,10 @@ export async function PATCH(request: Request) {
           @Accion = @Accion,
           @IdBienComponente = @IdBienComponente,
           @IdUsuario = @IdUsuario`,
-        {
-          Accion: data.Activo ? "T" : "E",
+        buildBienComponenteParams(data.Activo ? "T" : "E", {
           IdBienComponente: idBienComponente,
           IdUsuario: session.id,
-        }
+        })
       );
       return NextResponse.json({ success: true });
     }
@@ -226,16 +259,14 @@ export async function PATCH(request: Request) {
       `EXEC sp_MantenimientoBienComponente
         @Accion = @Accion,
         @IdBienComponente = @IdBienComponente,
-        @IdBien = @IdBien,
+        @CodigoPatrimonial = @CodigoPatrimonial,
         @IdComponente = @IdComponente,
         @Observacion = @Observacion,
         @IdUsuario = @IdUsuario,
         @Cantidad = @Cantidad,
-        @TipoEquipo = @TipoEquipo,
         @DescripcionModelo = @DescripcionModelo,
         @Marca = @Marca,
         @Serie = @Serie,
-        @CodigoPatrimonial = @CodigoPatrimonial,
         @ProcesadorEspecificaciones = @ProcesadorEspecificaciones,
         @RAM = @RAM,
         @Almacenamiento = @Almacenamiento,
@@ -243,19 +274,16 @@ export async function PATCH(request: Request) {
         @UbicacionFisica = @UbicacionFisica,
         @UsuarioAsignado = @UsuarioAsignado,
         @EstadoEquipo = @EstadoEquipo`,
-      {
-        Accion: "A",
+      buildBienComponenteParams("A", {
         IdBienComponente: idBienComponente,
-        IdBien: parseNullableInt(data.IdBien),
+        CodigoPatrimonial: data.CodigoPatrimonial && String(data.CodigoPatrimonial).trim() ? String(data.CodigoPatrimonial).trim() : "SIN-CODIGO-PATRIMONIAL",
         IdComponente: parseNullableInt(data.IdComponente),
         Observacion: data.Observacion || null,
         IdUsuario: session.id,
         Cantidad: parseNullableInt(data.Cantidad),
-        TipoEquipo: data.TipoEquipo || null,
         DescripcionModelo: data.DescripcionModelo || null,
         Marca: data.Marca || null,
         Serie: data.Serie || null,
-        CodigoPatrimonial: data.CodigoPatrimonial || null,
         ProcesadorEspecificaciones: data.ProcesadorEspecificaciones || null,
         RAM: data.RAM || null,
         Almacenamiento: data.Almacenamiento || null,
@@ -263,7 +291,7 @@ export async function PATCH(request: Request) {
         UbicacionFisica: data.UbicacionFisica || null,
         UsuarioAsignado: data.UsuarioAsignado || null,
         EstadoEquipo: data.EstadoEquipo || null,
-      }
+      })
     );
 
     return NextResponse.json({ success: true });
@@ -283,22 +311,7 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    let idBienComponente = parseNullableInt(searchParams.get("idBienComponente"));
-
-    if (!idBienComponente) {
-      const idBien = parseNullableInt(searchParams.get("idBien"));
-      const idComponente = parseNullableInt(searchParams.get("idComponente"));
-      if (idBien && idComponente) {
-        const result = await executeQuery(
-          `SELECT TOP 1 IdBienComponente
-           FROM BienesComponentes
-           WHERE IdBien = @IdBien AND IdComponente = @IdComponente
-           ORDER BY IdBienComponente DESC`,
-          { IdBien: idBien, IdComponente: idComponente }
-        );
-        idBienComponente = parseNullableInt(result.recordset?.[0]?.IdBienComponente);
-      }
-    }
+    const idBienComponente = parseNullableInt(searchParams.get("idBienComponente"));
 
     if (!idBienComponente) {
       return NextResponse.json(
@@ -312,7 +325,10 @@ export async function DELETE(request: Request) {
         @Accion = @Accion,
         @IdBienComponente = @IdBienComponente,
         @IdUsuario = @IdUsuario`,
-      { Accion: "E", IdBienComponente: idBienComponente, IdUsuario: session.id }
+      buildBienComponenteParams("E", {
+        IdBienComponente: idBienComponente,
+        IdUsuario: session.id,
+      })
     );
 
     return NextResponse.json({ success: true });

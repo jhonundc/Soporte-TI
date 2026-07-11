@@ -23,18 +23,143 @@ function parseBooleanLike(value: any): boolean | null {
   return null;
 }
 
+function normalizeKey(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildLookupMapFromOptions(rows: any[], idKeys: string[], labelKeys: string[]): Map<string, number> {
+  const map = new Map<string, number>();
+
+  for (const row of rows || []) {
+    const id = idKeys.map((k) => parseNullableInt(row?.[k])).find((v) => v !== null) ?? null;
+    const label = labelKeys.map((k) => toNullableString(row?.[k])).find((v) => !!v) ?? null;
+    if (id !== null && label) {
+      map.set(normalizeKey(label), id);
+    }
+  }
+
+  return map;
+}
+
+function resolveCatalogId(explicitId: unknown, labelValue: unknown, lookup: Map<string, number>): number | null {
+  const id = parseNullableInt(explicitId);
+  if (id !== null) return id;
+  const key = normalizeKey(labelValue);
+  if (!key) return null;
+  return lookup.get(key) ?? null;
+}
+
+async function resolveSoftwarePayloadIds(data: any) {
+  const [
+    softwareCatalogoResult,
+    tiposSoftwareResult,
+    proveedoresResult,
+    tiposLicenciaResult,
+    estadosLicenciaResult,
+    tiposAsignacionResult,
+  ] = await Promise.all([
+    executeQuery("SELECT IdSoftwareCatalogo, NombreSoftware FROM SoftwareCatalogo WHERE Activo = 1"),
+    executeQuery("SELECT IdTipoSoftware, TipoSoftware FROM TipoSoftware WHERE Activo = 1"),
+    executeQuery("SELECT IdProveedor, Proveedor FROM Proveedores WHERE Activo = 1"),
+    executeQuery("SELECT IdTipoLicencia, TipoLicencia FROM TipoLicencia WHERE Activo = 1"),
+    executeQuery("SELECT IdEstadoLicencia, EstadoLicencia FROM EstadosLicencia WHERE Activo = 1"),
+    executeQuery("SELECT IdTipoAsignacion, TipoAsignacion FROM TipoAsignacionSoftware WHERE Activo = 1"),
+  ]);
+
+  const softwareCatalogoMap = buildLookupMapFromOptions(
+    softwareCatalogoResult.recordset || [],
+    ["IdSoftwareCatalogo"],
+    ["NombreSoftware"]
+  );
+  const tiposSoftwareMap = buildLookupMapFromOptions(
+    tiposSoftwareResult.recordset || [],
+    ["IdTipoSoftware"],
+    ["TipoSoftware"]
+  );
+  const proveedoresMap = buildLookupMapFromOptions(
+    proveedoresResult.recordset || [],
+    ["IdProveedor"],
+    ["Proveedor", "NombreProveedor"]
+  );
+  const tiposLicenciaMap = buildLookupMapFromOptions(
+    tiposLicenciaResult.recordset || [],
+    ["IdTipoLicencia"],
+    ["TipoLicencia"]
+  );
+  const estadosLicenciaMap = buildLookupMapFromOptions(
+    estadosLicenciaResult.recordset || [],
+    ["IdEstadoLicencia"],
+    ["EstadoLicencia"]
+  );
+  const tiposAsignacionMap = buildLookupMapFromOptions(
+    tiposAsignacionResult.recordset || [],
+    ["IdTipoAsignacion"],
+    ["TipoAsignacion"]
+  );
+
+  const idSoftwareCatalogo = resolveCatalogId(
+    data.IdSoftwareCatalogo,
+    data.NombreSoftware,
+    softwareCatalogoMap
+  );
+  const idTipoSoftware = resolveCatalogId(data.IdTipoSoftware, data.TipoSoftware, tiposSoftwareMap);
+  const idProveedor = resolveCatalogId(data.IdProveedor, data.ProveedorEntidad, proveedoresMap);
+  const idTipoLicencia = resolveCatalogId(data.IdTipoLicencia, data.TipoLicencia, tiposLicenciaMap);
+  const idEstadoLicencia = resolveCatalogId(data.IdEstadoLicencia, data.EstadoLicencia, estadosLicenciaMap);
+  const idTipoAsignacion = resolveCatalogId(
+    data.IdTipoAsignacion,
+    data.EquiposUsuariosAsignados ?? data.TipoAsignacion,
+    tiposAsignacionMap
+  );
+
+  const errors: string[] = [];
+  if (!idSoftwareCatalogo) errors.push("Software inexistente o inactivo.");
+  if (!idTipoSoftware) errors.push("Tipo de software inexistente o inactivo.");
+  if (!idProveedor) errors.push("Proveedor inexistente o inactivo.");
+  if (!idTipoLicencia) errors.push("Tipo de licencia inexistente o inactivo.");
+  if (!idEstadoLicencia) errors.push("Estado de licencia inexistente o inactivo.");
+  if (!idTipoAsignacion) errors.push("Tipo de asignación inexistente o inactivo.");
+
+  const versionSoftware = toNullableString(data.VersionSoftware);
+  const cantidadLicencias = parseNullableInt(data.CantidadLicencias);
+
+  if (!versionSoftware) errors.push("La versión es obligatoria.");
+  if ((cantidadLicencias ?? 0) <= 0) errors.push("La cantidad de licencias debe ser mayor a cero.");
+
+  return {
+    ids: {
+      IdSoftwareCatalogo: idSoftwareCatalogo,
+      IdTipoSoftware: idTipoSoftware,
+      IdProveedor: idProveedor,
+      IdTipoLicencia: idTipoLicencia,
+      IdEstadoLicencia: idEstadoLicencia,
+      IdTipoAsignacion: idTipoAsignacion,
+      VersionSoftware: versionSoftware,
+      CantidadLicencias: cantidadLicencias,
+      FechaCaducidad: data.FechaCaducidad || null,
+      UsoFinalidad: toNullableString(data.UsoFinalidad),
+    },
+    errors,
+  };
+}
+
 function formatSoftwareRow(row: any) {
   return {
     IdSoftware: row.IdSoftware,
-    NombreSoftware: row.NombreSoftware,
-    TipoSoftware: row.TipoSoftware,
+    NombreSoftware: row.NombreSoftware ?? row.Software ?? row.Nombre,
+    TipoSoftware: row.TipoSoftware ?? row.Tipo,
     VersionSoftware: row.VersionSoftware,
-    ProveedorEntidad: row.ProveedorEntidad,
-    TipoLicencia: row.TipoLicencia,
+    ProveedorEntidad: row.ProveedorEntidad ?? row.Proveedor ?? row.NombreProveedor,
+    TipoLicencia: row.TipoLicencia ?? row.Licencia,
     CantidadLicencias: row.CantidadLicencias,
-    EstadoLicencia: row.EstadoLicencia,
+    EstadoLicencia: row.EstadoLicencia ?? row.Estado,
     FechaCaducidad: row.FechaCaducidad,
-    EquiposUsuariosAsignados: row.EquiposUsuariosAsignados,
+    EquiposUsuariosAsignados: row.EquiposUsuariosAsignados ?? row.TipoAsignacion,
     UsoFinalidad: row.UsoFinalidad,
     FechaRegistro: row.FechaRegistro,
     Activo: row.Activo,
@@ -113,50 +238,30 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
-    const requiredFields = [
-      "NombreSoftware",
-      "TipoSoftware",
-      "VersionSoftware",
-      "ProveedorEntidad",
-      "TipoLicencia",
-      "CantidadLicencias",
-      "EstadoLicencia",
-    ];
-
-    for (const field of requiredFields) {
-      if (!data[field] && data[field] !== 0) {
-        return NextResponse.json(
-          { error: `El campo ${field} es obligatorio.` },
-          { status: 400 }
-        );
-      }
+    const resolved = await resolveSoftwarePayloadIds(data);
+    if (resolved.errors.length) {
+      return NextResponse.json(
+        { error: resolved.errors.join(" ") },
+        { status: 400 }
+      );
     }
 
     const result = await executeQuery(
       `EXEC sp_MantenimientoSoftware
         @Accion = @Accion,
-        @NombreSoftware = @NombreSoftware,
-        @TipoSoftware = @TipoSoftware,
+        @IdSoftwareCatalogo = @IdSoftwareCatalogo,
+        @IdTipoSoftware = @IdTipoSoftware,
         @VersionSoftware = @VersionSoftware,
-        @ProveedorEntidad = @ProveedorEntidad,
-        @TipoLicencia = @TipoLicencia,
+        @IdProveedor = @IdProveedor,
+        @IdTipoLicencia = @IdTipoLicencia,
         @CantidadLicencias = @CantidadLicencias,
-        @EstadoLicencia = @EstadoLicencia,
+        @IdEstadoLicencia = @IdEstadoLicencia,
         @FechaCaducidad = @FechaCaducidad,
-        @EquiposUsuariosAsignados = @EquiposUsuariosAsignados,
+        @IdTipoAsignacion = @IdTipoAsignacion,
         @UsoFinalidad = @UsoFinalidad`,
       {
         Accion: "R",
-        NombreSoftware: String(data.NombreSoftware),
-        TipoSoftware: String(data.TipoSoftware),
-        VersionSoftware: String(data.VersionSoftware),
-        ProveedorEntidad: String(data.ProveedorEntidad),
-        TipoLicencia: String(data.TipoLicencia),
-        CantidadLicencias: parseNullableInt(data.CantidadLicencias),
-        EstadoLicencia: String(data.EstadoLicencia),
-        FechaCaducidad: data.FechaCaducidad || null,
-        EquiposUsuariosAsignados: data.EquiposUsuariosAsignados ? String(data.EquiposUsuariosAsignados) : null,
-        UsoFinalidad: data.UsoFinalidad ? String(data.UsoFinalidad) : null,
+        ...resolved.ids,
       }
     );
 
@@ -188,10 +293,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: true });
     }
 
-    const cantidadLicencias = parseNullableInt(data.CantidadLicencias);
-    if (cantidadLicencias !== null && cantidadLicencias < 0) {
+    const resolved = await resolveSoftwarePayloadIds(data);
+    if (resolved.errors.length) {
       return NextResponse.json(
-        { error: "La cantidad de licencias no puede ser negativa." },
+        { error: resolved.errors.join(" ") },
         { status: 400 }
       );
     }
@@ -200,29 +305,20 @@ export async function PATCH(request: Request) {
       `EXEC sp_MantenimientoSoftware
         @Accion = @Accion,
         @IdSoftware = @IdSoftware,
-        @NombreSoftware = @NombreSoftware,
-        @TipoSoftware = @TipoSoftware,
+        @IdSoftwareCatalogo = @IdSoftwareCatalogo,
+        @IdTipoSoftware = @IdTipoSoftware,
         @VersionSoftware = @VersionSoftware,
-        @ProveedorEntidad = @ProveedorEntidad,
-        @TipoLicencia = @TipoLicencia,
+        @IdProveedor = @IdProveedor,
+        @IdTipoLicencia = @IdTipoLicencia,
         @CantidadLicencias = @CantidadLicencias,
-        @EstadoLicencia = @EstadoLicencia,
+        @IdEstadoLicencia = @IdEstadoLicencia,
         @FechaCaducidad = @FechaCaducidad,
-        @EquiposUsuariosAsignados = @EquiposUsuariosAsignados,
+        @IdTipoAsignacion = @IdTipoAsignacion,
         @UsoFinalidad = @UsoFinalidad`,
       {
         Accion: "A",
         IdSoftware: idSoftware,
-        NombreSoftware: String(data.NombreSoftware),
-        TipoSoftware: String(data.TipoSoftware),
-        VersionSoftware: String(data.VersionSoftware),
-        ProveedorEntidad: String(data.ProveedorEntidad),
-        TipoLicencia: String(data.TipoLicencia),
-        CantidadLicencias: cantidadLicencias,
-        EstadoLicencia: String(data.EstadoLicencia),
-        FechaCaducidad: data.FechaCaducidad || null,
-        EquiposUsuariosAsignados: data.EquiposUsuariosAsignados ? String(data.EquiposUsuariosAsignados) : null,
-        UsoFinalidad: data.UsoFinalidad ? String(data.UsoFinalidad) : null,
+        ...resolved.ids,
       }
     );
 

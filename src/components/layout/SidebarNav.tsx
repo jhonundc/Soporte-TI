@@ -58,6 +58,7 @@ const adminMenuItems: SidebarMenuItem[] = [
       { label: "Áreas", href: "/configuracion/areas" },
       { label: "Categorías", href: "/configuracion/categorias" },
       { label: "Marcas", href: "/configuracion/marcas" },
+      { label: "Componentes", href: "/configuracion/componentes" },
       { label: "Proveedores", href: "/configuracion/proveedores" },
       { label: "Condiciones", href: "/configuracion/condiciones" },
       { label: "Estados", href: "/configuracion/estados" },
@@ -70,7 +71,7 @@ const adminMenuItems: SidebarMenuItem[] = [
   {
     icon: BarChart,
     label: "Reportes",
-    href: "/reportes",
+    href: "/reportes/inventario",
     subItems: [
       { label: "Registro de inventario", href: "/reportes/inventario" },
       { label: "Registro de fichas", href: "/reportes/fichas" },
@@ -103,7 +104,7 @@ const supportMenuItems: SidebarMenuItem[] = [
   {
     icon: BarChart,
     label: "Reportes",
-    href: "/reportes",
+    href: "/reportes/inventario",
     subItems: [
       { label: "Registro de inventario", href: "/reportes/inventario" },
       { label: "Registro de fichas", href: "/reportes/fichas" },

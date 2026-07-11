@@ -72,10 +72,6 @@ export const modelosCatalogConfig: CatalogCrudConfig = {
     },
   ],
   tableFields: ["Modelo"],
-  buildToggleBody: (item) => ({
-    IdModelo: item.IdModelo,
-    Activo: !item.Activo,
-  }),
 };
 
 export const areasCatalogConfig: CatalogCrudConfig = {
@@ -192,6 +188,30 @@ export const proveedoresCatalogConfig: CatalogCrudConfig = {
     },
   ],
   tableFields: ["Proveedor"],
+};
+
+export const componentesCatalogConfig: CatalogCrudConfig = {
+  title: "Configuración de Componentes",
+  description: "Gestiona los componentes disponibles del inventario.",
+  entityLabel: "componente",
+  apiPath: "/api/componentes-catalogo",
+  queryKey: queryKeys.catalogs.componentes,
+  idField: "IdComponente",
+  newButtonLabel: "Nuevo Componente",
+  emptyMessage: "No hay componentes registrados. Crea uno para comenzar.",
+  showStatusColumn: true,
+  enableView: true,
+  enableToggle: true,
+  enableDelete: true,
+  fields: [
+    {
+      name: "NombreComponente",
+      label: "Nombre del Componente",
+      placeholder: "Ej. Mouse USB",
+      required: "El nombre es requerido",
+    },
+  ],
+  tableFields: ["NombreComponente"],
 };
 
 export const tiposLicenciaCatalogConfig: CatalogCrudConfig = {

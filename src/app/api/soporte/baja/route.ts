@@ -3,6 +3,7 @@ import { executeQuery } from "@/lib/db";
 import {
   bajaCreateApiSchema,
   bajaDeleteQuerySchema,
+  bajaListQuerySchema,
   bajaUpdateApiSchema,
   parseJsonBody,
   parseSearchParams,
@@ -82,10 +83,26 @@ async function enrichBajas(baseRows: any[]) {
   });
 }
 
-// Obtener todas las fichas de baja
-export async function GET() {
+// Obtener fichas de baja (lista o por número de ficha)
+export async function GET(request: Request) {
   try {
-    const result = await executeQuery(`EXEC sp_ConsultaBajaBien @Accion = @Accion`, { Accion: "L" });
+    const { searchParams } = new URL(request.url);
+    const queryParsed = parseSearchParams(bajaListQuerySchema, searchParams);
+    if ("error" in queryParsed) return queryParsed.error;
+
+    const numeroFicha = queryParsed.data.numeroFicha;
+    const accion = numeroFicha ? "F" : "L";
+
+    const result = await executeQuery(
+      `EXEC sp_ConsultaBajaBien
+         @Accion = @Accion,
+         @NumeroFichaBaja = @NumeroFichaBaja`,
+      {
+        Accion: accion,
+        NumeroFichaBaja: numeroFicha ?? null,
+      }
+    );
+
     const fichas = await enrichBajas(result.recordset || []);
     return NextResponse.json(fichas);
   } catch (error) {

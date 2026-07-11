@@ -37,6 +37,7 @@ export {
   bajaCreateApiSchema,
   bajaUpdateApiSchema,
   bajaDeleteQuerySchema,
+  bajaListQuerySchema,
   type BajaCreateApiInput,
   type BajaUpdateApiInput,
 } from "./baja.schema";

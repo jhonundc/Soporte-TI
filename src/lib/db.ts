@@ -63,7 +63,6 @@ export async function getPool(): Promise<sql.ConnectionPool> {
 
 function addParams(request: sql.Request, params: Record<string, unknown>) {
   for (const [key, value] of Object.entries(params)) {
-<<<<<<< HEAD
     const lowerKey = key.toLowerCase();
     try {
       // null / undefined
@@ -144,9 +143,6 @@ function addParams(request: sql.Request, params: Record<string, unknown>) {
         console.warn(`No se pudo asignar parámetro ${key}`, e);
       }
     }
-=======
-    request.input(key, value as never);
->>>>>>> f94a8a056b7c87972de21b6fa024d9bb7624f8d5
   }
 }
 

@@ -6,7 +6,6 @@ import { notify } from "@/lib/feedback/toast";
 import { exportFichasSoporteListExcel } from "@/lib/export/fichas-soporte-list-excel";
 import { queryKeys } from "@/lib/query-keys";
 import { fichaService } from "@/services/ficha.service";
-import type { FichaSoporteRecord } from "@/features/soporte/ficha/types";
 
 export const ESTADOS_TICKET = [
   "Pendiente",
@@ -16,51 +15,22 @@ export const ESTADOS_TICKET = [
   "Cerrado",
 ] as const;
 
-function matchesSearch(ficha: FichaSoporteRecord, texto: string): boolean {
-  const invCode = (ficha.Bien?.CodigoInventario || "").toLowerCase();
-  const patCode = (ficha.Bien?.CodigoPatrimonial || "").toLowerCase();
-  const serial = (ficha.Bien?.NumeroSerie || "").toLowerCase();
-  const numFicha = (ficha.NumeroFicha || "").toLowerCase();
-  const resp = (ficha.Responsable || "").toLowerCase();
-  const dep = (ficha.Dependencia || "").toLowerCase();
-  const amb = (ficha.Ambiente || "").toLowerCase();
-  const prob = (ficha.DescripcionProblema || "").toLowerCase();
-  const trabajos = (ficha.TrabajosRealizados || "").toLowerCase();
-  const diag = (ficha.Diagnostico || "").toLowerCase();
-  const rec = (ficha.Recomendacion || "").toLowerCase();
-
-  return (
-    numFicha.includes(texto) ||
-    invCode.includes(texto) ||
-    patCode.includes(texto) ||
-    serial.includes(texto) ||
-    resp.includes(texto) ||
-    dep.includes(texto) ||
-    amb.includes(texto) ||
-    prob.includes(texto) ||
-    trabajos.includes(texto) ||
-    diag.includes(texto) ||
-    rec.includes(texto)
-  );
-}
-
 export function useFichaList() {
   const [buscarText, setBuscarText] = useState("");
   const [filterEstadoTicket, setFilterEstadoTicket] = useState("");
   const [filterPrioridad, setFilterPrioridad] = useState("");
   const [filterArea, setFilterArea] = useState("");
 
+  const numeroFichaBuscada = buscarText.trim();
+
   const { data: fichas, isLoading, error } = useQuery({
-    queryKey: queryKeys.fichasSoporte(),
-    queryFn: fichaService.list,
+    queryKey: queryKeys.fichasSoporte(numeroFichaBuscada),
+    queryFn: () => fichaService.list({ numeroFicha: numeroFichaBuscada || undefined }),
   });
 
   const displayFichas = useMemo(() => {
     const list = fichas ?? [];
-    const texto = buscarText.trim().toLowerCase();
-
     return list.filter((ficha) => {
-      const matchesText = !texto || matchesSearch(ficha, texto);
       const matchesEstadoTicket =
         !filterEstadoTicket ||
         String(ficha.EstadoTicket || "").toLowerCase() === filterEstadoTicket.toLowerCase();
@@ -73,9 +43,9 @@ export function useFichaList() {
         !filterArea ||
         String(ficha.Dependencia || "").toLowerCase() === filterArea.toLowerCase();
 
-      return matchesText && matchesEstadoTicket && matchesPrioridad && matchesArea;
+      return matchesEstadoTicket && matchesPrioridad && matchesArea;
     });
-  }, [buscarText, filterArea, filterEstadoTicket, filterPrioridad, fichas]);
+  }, [filterArea, filterEstadoTicket, filterPrioridad, fichas]);
 
   const activeFilterCount =
     Number(Boolean(buscarText.trim())) +
