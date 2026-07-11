@@ -1,14 +1,20 @@
 "use client";
 
+<<<<<<< HEAD
 import { PanelLeftClose, PanelLeftOpen, Boxes } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
 import { Button } from "@/components/ui/button";
+=======
+import { Boxes } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useUIStore } from "@/store/ui";
+>>>>>>> 730492ed4a0e4fe8e1003e665c1386ac4efaa3ce
 import { SidebarNav } from "@/components/layout/SidebarNav";
 import { BrandMark } from "@/components/layout/BrandMark";
 
 export default function Sidebar() {
-  const { isSidebarCollapsed, toggleSidebar, setSidebarCollapsed } = useUIStore();
+  const { isSidebarCollapsed, setSidebarCollapsed } = useUIStore();
 
   return (
     <aside
@@ -18,27 +24,14 @@ export default function Sidebar() {
         isSidebarCollapsed ? "w-[4.5rem]" : "w-64"
       )}
     >
-      <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-3">
+      <div className="flex h-16 items-center border-b border-sidebar-border px-3">
         {!isSidebarCollapsed ? (
-          <BrandMark textClassName="text-sidebar-foreground [&_p:last-child]:text-sidebar-muted" />
+          <BrandMark textClassName="text-sidebar-foreground [&_p:first-child]:text-lg [&_p:last-child]:text-sm [&_p:last-child]:text-sidebar-muted" />
         ) : (
           <div className="mx-auto flex size-9 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
             <Boxes className="size-4" aria-hidden="true" />
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={toggleSidebar}
-          className="shrink-0 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          aria-label={isSidebarCollapsed ? "Expandir menú" : "Contraer menú"}
-        >
-          {isSidebarCollapsed ? (
-            <PanelLeftOpen className="size-4" />
-          ) : (
-            <PanelLeftClose className="size-4" />
-          )}
-        </Button>
       </div>
 
       <SidebarNav

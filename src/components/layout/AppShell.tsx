@@ -50,7 +50,7 @@ import {
 
 } from "@/components/ui/sheet";
 
-import { fetchSessionClient } from "@/lib/auth/session-client";
+import { useSession } from "@/lib/hooks/useSession";
 
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 
@@ -72,29 +72,15 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
 
-  const { isSidebarCollapsed } = useUIStore();
+  const { isSidebarCollapsed, toggleSidebar } = useUIStore();
 
   const pathname = usePathname();
 
   const router = useRouter();
 
-  const [role, setRole] = useState("");
-
+  const { data: sessionData } = useSession();
+  const role = String(sessionData?.user?.role || "").toLowerCase();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
-
-
-  useEffect(() => {
-
-    fetchSessionClient()
-
-      .then((data) => setRole(String(data?.user?.role || "").toLowerCase()))
-
-      .catch(() => {});
-
-  }, []);
-
-
 
   useEffect(() => {
 
@@ -182,7 +168,7 @@ export function AppShell({ children }: AppShellProps) {
 
           role="banner"
 
-          className="flex h-14 items-center justify-between border-b border-border bg-card/80 px-4 backdrop-blur-sm md:px-6"
+          className="flex h-14 items-center justify-between border-b border-border bg-card px-4 md:px-6"
 
         >
 
@@ -194,15 +180,31 @@ export function AppShell({ children }: AppShellProps) {
 
               size="icon-sm"
 
-              className="md:hidden"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
 
-              onClick={() => setMobileNavOpen(true)}
+              onClick={() => {
 
-              aria-label="Abrir menú de navegación"
+                if (window.matchMedia("(min-width: 768px)").matches) {
+
+                  toggleSidebar();
+
+                } else {
+
+                  setMobileNavOpen(true);
+
+                }
+
+              }}
+
+              aria-label={
+
+                isSidebarCollapsed ? "Abrir menú de navegación" : "Cerrar menú de navegación"
+
+              }
 
             >
 
-              <Menu className="size-5 text-muted-foreground" />
+              <Menu className="size-5" />
 
             </Button>
 

@@ -8,7 +8,8 @@ import {
   getPrioridades,
   getTiposBien,
 } from "@/app/actions/catalogs";
-import { fetchSessionClient } from "@/lib/auth/session-client";
+import { useSession } from "@/lib/hooks/useSession";
+import { QUERY_STALE_TIME } from "@/lib/query-config";
 import { queryKeys } from "@/lib/query-keys";
 import { bienesService } from "@/services/bienes.service";
 import type {
@@ -20,41 +21,58 @@ import type {
   TipoBienRef,
 } from "@/features/soporte/ficha/types";
 
-export function useFichaCatalogs() {
+interface UseFichaCatalogsOptions {
+  loadFormCatalogs?: boolean;
+}
+
+export function useFichaCatalogs(options: UseFichaCatalogsOptions = {}) {
+  const loadFormCatalogs = options.loadFormCatalogs ?? true;
+  const catalogOptions = {
+    staleTime: QUERY_STALE_TIME.catalogs,
+    gcTime: 30 * 60 * 1000,
+  };
+
   const bienesQuery = useQuery({
     queryKey: queryKeys.bienes.all(),
     queryFn: bienesService.list,
+    enabled: loadFormCatalogs,
+    ...catalogOptions,
   });
 
   const condicionesQuery = useQuery<CondicionRef[]>({
-    queryKey: ["condicionesFichas"],
+    queryKey: queryKeys.catalogs.condiciones,
     queryFn: getCondiciones,
+    enabled: loadFormCatalogs,
+    ...catalogOptions,
   });
 
   const estadosQuery = useQuery<EstadoRef[]>({
-    queryKey: ["estadosFichas"],
+    queryKey: queryKeys.catalogs.estados,
     queryFn: getEstados,
+    enabled: loadFormCatalogs,
+    ...catalogOptions,
   });
 
   const prioridadesQuery = useQuery<PrioridadRef[]>({
-    queryKey: ["prioridadesFichas"],
+    queryKey: queryKeys.catalogs.prioridades,
     queryFn: getPrioridades,
+    ...catalogOptions,
   });
 
   const areasQuery = useQuery<AreaRef[]>({
     queryKey: queryKeys.catalogs.areas,
     queryFn: getAreas,
+    ...catalogOptions,
   });
 
   const tiposBienQuery = useQuery<TipoBienRef[]>({
-    queryKey: ["tiposBien"],
+    queryKey: queryKeys.catalogs.tiposBien,
     queryFn: getTiposBien,
+    enabled: loadFormCatalogs,
+    ...catalogOptions,
   });
 
-  const sessionQuery = useQuery({
-    queryKey: queryKeys.session(),
-    queryFn: fetchSessionClient,
-  });
+  const sessionQuery = useSession();
 
   return {
     bienes: bienesQuery.data as BienRef[] | undefined,

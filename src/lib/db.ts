@@ -1,7 +1,15 @@
 import sql from "mssql";
 import { config as dotenvConfig } from "dotenv";
 
-dotenvConfig({ path: ".env" });
+declare global {
+  var mssqlPool: sql.ConnectionPool | undefined;
+  var __dotenvLoaded: boolean | undefined;
+}
+
+if (!globalThis.__dotenvLoaded) {
+  dotenvConfig({ path: ".env" });
+  globalThis.__dotenvLoaded = true;
+}
 
 const getEnv = (key: string, fallback = "") => process.env[key]?.trim() ?? fallback;
 
@@ -27,10 +35,6 @@ const config: sql.config = {
   connectionTimeout: 15000,
   requestTimeout: 30000,
 };
-
-declare global {
-  var mssqlPool: sql.ConnectionPool | undefined;
-}
 
 async function createPool(): Promise<sql.ConnectionPool> {
   const pool = new sql.ConnectionPool(config);
