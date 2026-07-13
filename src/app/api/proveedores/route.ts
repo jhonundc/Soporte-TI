@@ -30,17 +30,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await executeQuery(
-      `EXEC pro_RegistrarProveedor
-        @Proveedor = @Proveedor`,
-      {
-        Proveedor: data.Proveedor,
-      }
-    );
+    try {
+      await executeQuery(
+        `EXEC sp_MantenimientoProveedor @Accion = @Accion, @Proveedor = @Proveedor`,
+        {
+          Accion: "R",
+          Proveedor: data.Proveedor,
+        }
+      );
 
-    return NextResponse.json(result.recordset?.[0] ?? { success: true }, {
-      status: 201,
-    });
+      // Stored procedure does not return the inserted row, so fetch it
+      const sel = await executeQuery(
+        `SELECT TOP 1 IdProveedor, Proveedor, Activo FROM Proveedores WHERE Proveedor = @Proveedor ORDER BY IdProveedor DESC`,
+        { Proveedor: data.Proveedor }
+      );
+
+      return NextResponse.json(sel.recordset?.[0] ?? { success: true }, { status: 201 });
+    } catch (err: any) {
+      console.error("Error al ejecutar sp_MantenimientoProveedor (POST):", err);
+      const msg = (err && err.message) || "Error al registrar el proveedor";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
   } catch (error) {
     console.error("Error en POST /api/proveedores:", error);
     return NextResponse.json(

@@ -116,14 +116,20 @@ export function CatalogCrudPage({ config }: CatalogCrudPageProps) {
       notify.fromError(err, `No se pudo cambiar el estado de ${config.entityLabel}`),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => catalogService.remove(config.apiPath, id),
+    const deleteMutation = useMutation({
+    mutationFn: (id: number) =>
+      // For areas, categorias, condiciones and estados, perform permanent delete via maintenance SP (permanent=1)
+      catalogService.remove(
+        config.apiPath,
+        id,
+        { permanent: ["/api/areas", "/api/categorias", "/api/condiciones", "/api/estados"].includes(config.apiPath) }
+      ),
     onSuccess: () => {
       invalidate();
-      notify.success(`${config.entityLabel.charAt(0).toUpperCase()}${config.entityLabel.slice(1)} desactivado`);
+      notify.success(`${config.entityLabel.charAt(0).toUpperCase()}${config.entityLabel.slice(1)} eliminado`);
     },
     onError: (err) =>
-      notify.fromError(err, `No se pudo desactivar ${config.entityLabel}`),
+      notify.fromError(err, `No se pudo eliminar ${config.entityLabel}`),
   });
 
   const closeDialog = () => {
@@ -158,32 +164,42 @@ export function CatalogCrudPage({ config }: CatalogCrudPageProps) {
     setPendingAction({ type: "delete", id });
   };
 
-  const confirmDialogProps =
-    pendingAction?.type === "delete"
-      ? {
-          title: "Confirmar baja",
-          description: `¿Está seguro de dar de baja este ${config.entityLabel}?`,
-          variant: "destructive" as const,
-          confirmLabel: "Dar de baja",
-          onConfirm: async () => {
-            deleteMutation.mutate(pendingAction.id);
-            setPendingAction(null);
-          },
-        }
-      : pendingAction?.type === "toggle"
-        ? {
-            title: "Confirmar cambio de estado",
-            description: `¿Está seguro de ${
-              pendingAction.item.Activo ? "desactivar" : "activar"
-            } este ${config.entityLabel}?`,
-            variant: "default" as const,
-            confirmLabel: pendingAction.item.Activo ? "Desactivar" : "Activar",
-            onConfirm: async () => {
-              toggleMutation.mutate(pendingAction.item);
-              setPendingAction(null);
-            },
-          }
-        : null;
+  const confirmDialogProps = (() => {
+    if (!pendingAction) return null;
+    if (pendingAction.type === "delete") {
+      const permanentPaths = ["/api/areas", "/api/categorias", "/api/condiciones", "/api/estados"];
+      const isPermanent = permanentPaths.includes(config.apiPath);
+      return {
+        title: isPermanent ? "Confirmar eliminación" : "Confirmar baja",
+        description: isPermanent
+          ? `¿Está seguro de eliminar permanentemente este ${config.entityLabel}?`
+          : `¿Está seguro de dar de baja este ${config.entityLabel}?`,
+        variant: "destructive" as const,
+        confirmLabel: isPermanent ? "Eliminar" : "Dar de baja",
+        onConfirm: async () => {
+          deleteMutation.mutate(pendingAction.id);
+          setPendingAction(null);
+        },
+      };
+    }
+
+    if (pendingAction.type === "toggle") {
+      return {
+        title: "Confirmar cambio de estado",
+        description: `¿Está seguro de ${
+          pendingAction.item.Activo ? "desactivar" : "activar"
+        } este ${config.entityLabel}?`,
+        variant: "default" as const,
+        confirmLabel: pendingAction.item.Activo ? "Desactivar" : "Activar",
+        onConfirm: async () => {
+          toggleMutation.mutate(pendingAction.item);
+          setPendingAction(null);
+        },
+      };
+    }
+
+    return null;
+  })();
 
   const tableFieldNames = config.tableFields ?? config.fields.map((f) => f.name);
 

@@ -10,15 +10,141 @@ function parseNullableInt(value: any) {
 
 function normalizeComponentesRecord(record: any) {
   if (!record || typeof record !== "object") return record;
-  const normalized = { ...record };
+
+  const normalized = {
+    ...record,
+    CodigoPatrimonial:
+      record.CodigoPatrimonial ??
+      record.codigoPatrimonial ??
+      record.Bien?.CodigoPatrimonial ??
+      record.Bien?.codigoPatrimonial ??
+      record.Codigo_Patrimonial ??
+      record.Bien?.Codigo_Patrimonial ??
+      null,
+    CodigoInventario:
+      record.CodigoInventario ??
+      record.codigoInventario ??
+      record.Bien?.CodigoInventario ??
+      record.Bien?.codigoInventario ??
+      null,
+    BienDescripcion:
+      record.BienDescripcion ??
+      record.DescripcionBien ??
+      record.Bien?.Descripcion ??
+      record.Descripcion ??
+      null,
+    Area:
+      typeof record.Area === "string"
+        ? { NombreArea: record.Area }
+        : record.Area ?? null,
+  };
+
   if (normalized.Marca && typeof normalized.Marca === "object") {
     normalized.Marca = normalized.Marca.Marca ?? "";
   }
   if (normalized.EstadoEquipo && typeof normalized.EstadoEquipo === "object") {
     normalized.EstadoEquipo = normalized.EstadoEquipo.EstadoEquipo ?? "";
   }
+
   return normalized;
 }
+
+function isIgnorableCodigoPatrimonial(value: string) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return [
+    "",
+    "sin asignación",
+    "sin asignacion",
+    "sin-asignacion",
+    "sinasignación",
+    "sinasignacion",
+  ].includes(normalized.replace(/\s+/g, " "));
+}
+
+async function enrichBienArea(records: any[]) {
+  if (!records.length) return records;
+
+  const patrimonios = Array.from(
+    new Set(
+      records
+        .map((record) => String(record?.CodigoPatrimonial ?? "").trim())
+        .filter((value) => value && !isIgnorableCodigoPatrimonial(value))
+    )
+  );
+
+  if (!patrimonios.length) return records;
+
+  const params: Record<string, unknown> = {};
+  const paramNames = patrimonios.map((patrimonio, index) => {
+    const key = `CodigoPatrimonial${index}`;
+    params[key] = patrimonio;
+    return `@${key}`;
+  });
+
+  const bienesResult = await executeQuery(
+    `SELECT IdBien, CodigoInventario, CodigoPatrimonial, Descripcion, IdArea FROM Bienes WHERE CodigoPatrimonial IN (${paramNames.join(",")})`,
+    params
+  );
+
+  const bienRows = bienesResult.recordset || [];
+  const areasIds = Array.from(
+    new Set(bienRows.map((bien: any) => bien.IdArea).filter((id: any) => id != null))
+  ) as number[];
+
+  const areasResult = areasIds.length
+    ? await executeQuery(
+        `SELECT IdArea, NombreArea, Piso, Referencia, Activo FROM Areas WHERE IdArea IN (${areasIds.join(",")})`
+      )
+    : { recordset: [] };
+
+  const bienMap = new Map(
+    bienRows.map((bien: any) => [String(bien.CodigoPatrimonial ?? "").trim(), bien])
+  );
+  const areaMap = new Map(
+    (areasResult.recordset || []).map((area: any) => [area.IdArea, area])
+  );
+
+  return records.map((record) => {
+    const codigo = String(record?.CodigoPatrimonial ?? "").trim();
+    const matchedBien = codigo ? bienMap.get(codigo) : null;
+    const matchedArea = matchedBien?.IdArea ? areaMap.get(matchedBien.IdArea) : null;
+
+    return {
+      ...record,
+      Bien: matchedBien
+        ? {
+            IdBien: matchedBien.IdBien,
+            CodigoInventario: matchedBien.CodigoInventario,
+            CodigoPatrimonial: matchedBien.CodigoPatrimonial,
+            Descripcion: matchedBien.Descripcion,
+            IdArea: matchedBien.IdArea,
+            Area: matchedArea
+              ? {
+                  IdArea: matchedArea.IdArea,
+                  NombreArea: matchedArea.NombreArea,
+                  Piso: matchedArea.Piso,
+                  Referencia: matchedArea.Referencia,
+                  Activo: matchedArea.Activo,
+                }
+              : null,
+          }
+        : record.Bien ?? null,
+      Area: matchedArea
+        ? {
+            IdArea: matchedArea.IdArea,
+            NombreArea: matchedArea.NombreArea,
+            Piso: matchedArea.Piso,
+            Referencia: matchedArea.Referencia,
+            Activo: matchedArea.Activo,
+          }
+        : record.Area ?? null,
+      BienDescripcion:
+        record.BienDescripcion || matchedBien?.Descripcion || record.Descripcion || null,
+    };
+  });
+}
+
+const VALID_BIEN_COMPONENTE_ACTIONS = new Set(["L", "I", "P", "C", "A", "M", "S", "U", "E", "T", "D"]);
 
 function buildBienComponenteParams(action: string, overrides: Record<string, any> = {}): Record<string, unknown> {
   return {
@@ -26,6 +152,7 @@ function buildBienComponenteParams(action: string, overrides: Record<string, any
     IdBienComponente: null,
     CodigoPatrimonial: null,
     IdComponente: null,
+    IdArea: null,
     Observacion: null,
     IdUsuario: null,
     Cantidad: null,
@@ -43,57 +170,37 @@ function buildBienComponenteParams(action: string, overrides: Record<string, any
   };
 }
 
-async function enrichComponentes(records: any[]) {
-  if (!records.length) return records;
+function normalizePatrimonialCode(value: any) {
+  const input = String(value ?? "").trim();
+  if (!input) return "SIN ASIGNACIÓN";
+  const normalized = input.toLowerCase();
+  if (["sin asignación", "sin-asignacion", "sin-asignación", "sinasignación"].includes(normalized.replace(/\s+/g, ""))) {
+    return "SIN ASIGNACIÓN";
+  }
+  return input;
+}
 
-  const componenteIds = Array.from(
-    new Set(records.map((r: any) => parseNullableInt(r.IdComponente)).filter((id) => id !== null))
-  );
-  const codigoPatrimoniales = Array.from(
-    new Set(
-      records
-        .map((r: any) => String(r.CodigoPatrimonial ?? "").trim())
-        .filter((value) => value.length > 0)
-    )
-  );
-
-  const bienParams: Record<string, any> = {};
-  const bienPlaceholders = codigoPatrimoniales.map((code, index) => {
-    const key = `bien_${index}`;
-    bienParams[key] = code;
-    return `@${key}`;
+async function loadComponentesCatalogMap() {
+  const catalogResult = await executeQuery(`EXEC sp_ConsultaComponente @Accion = @Accion`, {
+    Accion: "A",
   });
 
-  const [bienesResult, componentesResult] = await Promise.all([
-    codigoPatrimoniales.length
-      ? executeQuery(
-          `SELECT CodigoInventario, CodigoPatrimonial, Descripcion FROM Bienes WHERE CodigoPatrimonial IN (${bienPlaceholders.join(",")})`,
-          bienParams
-        )
-      : Promise.resolve({ recordset: [] }),
-    componenteIds.length
-      ? executeQuery(
-          `SELECT IdComponente, NombreComponente, Modelo FROM Componentes WHERE IdComponente IN (${componenteIds.join(",")})`
-        )
-      : Promise.resolve({ recordset: [] }),
-  ]);
+  return (catalogResult.recordset || []).reduce((map: Record<string, string>, item: any) => {
+    const id = item?.IdComponente != null ? String(item.IdComponente) : null;
+    if (id) {
+      map[id] = item.NombreComponente ?? map[id] ?? "";
+    }
+    return map;
+  }, {});
+}
 
-  const bienesMap = new Map(
-    (bienesResult.recordset || []).map((b: any) => [String(b.CodigoPatrimonial ?? "").trim(), b])
-  );
-  const componentesMap = new Map((componentesResult.recordset || []).map((c: any) => [c.IdComponente, c]));
-
+async function enrichComponentes(records: any[], componenteNames: Record<string, string> = {}) {
   return records.map((record: any) => {
-    const codigoPatrimonial = String(record.CodigoPatrimonial ?? "").trim();
-    const bien = bienesMap.get(codigoPatrimonial);
-
-    return normalizeComponentesRecord({
-      ...record,
-      BienDescripcion: bien?.Descripcion || null,
-      CodigoInventario: bien?.CodigoInventario || null,
-      NombreComponente: componentesMap.get(record.IdComponente)?.NombreComponente || null,
-      ComponenteModelo: componentesMap.get(record.IdComponente)?.Modelo || null,
-    });
+    const normalized = normalizeComponentesRecord(record);
+    if (!normalized.NombreComponente && normalized.IdComponente != null) {
+      normalized.NombreComponente = componenteNames[String(normalized.IdComponente)] || normalized.NombreComponente;
+    }
+    return normalized;
   });
 }
 
@@ -104,40 +211,84 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const catalog = url.searchParams.get("catalog") === "true";
+    const requestedAction = (url.searchParams.get("accion") || "").trim().toUpperCase();
     const codigoParam = url.searchParams.get("codigoPatrimonial");
     const serieParam = url.searchParams.get("serie");
     const idBienComponenteParam = parseNullableInt(url.searchParams.get("idBienComponente"));
+    const idComponenteParam = parseNullableInt(url.searchParams.get("idComponente"));
+    const idAreaParam = parseNullableInt(url.searchParams.get("idArea"));
+    const marcaParam = url.searchParams.get("marca");
+    const usuarioAsignadoParam = url.searchParams.get("usuarioAsignado");
+    const estadoEquipoParam = url.searchParams.get("estadoEquipo");
 
     if (catalog) {
-      const result = await executeQuery(
-        `SELECT IdComponente, NombreComponente, IdMarca, Modelo, NumeroSerie, Capacidad, Observacion, Cantidad, Activo
-         FROM Componentes
-         ORDER BY NombreComponente ASC`
-      );
-      return NextResponse.json(result.recordset);
+      const result = await executeQuery(`EXEC sp_ConsultaComponente @Accion = @Accion`, {
+        Accion: "L",
+      });
+      return NextResponse.json(result.recordset || []);
     }
 
-    let action = "L";
+    let action = requestedAction && VALID_BIEN_COMPONENTE_ACTIONS.has(requestedAction) ? requestedAction : "L";
+
+    if (!requestedAction) {
+      if (idBienComponenteParam) {
+        action = "I";
+      } else if (codigoParam) {
+        action = "P";
+      } else if (idComponenteParam) {
+        action = "C";
+      } else if (idAreaParam) {
+        action = "A";
+      } else if (marcaParam) {
+        action = "M";
+      } else if (serieParam) {
+        action = "S";
+      } else if (usuarioAsignadoParam) {
+        action = "U";
+      } else if (estadoEquipoParam) {
+        action = "E";
+      }
+    }
+
     const params = buildBienComponenteParams(action);
 
-    if (idBienComponenteParam) {
-      action = "I";
+    if (action === "I") {
+      if (!idBienComponenteParam) {
+        return NextResponse.json(
+          { error: "idBienComponente es requerido para la acción I" },
+          { status: 400 }
+        );
+      }
+
+      params.IdBienComponente = idBienComponenteParam;
       const single = await executeQuery(
         `EXEC sp_ConsultaBienComponente @Accion = @Accion, @IdBienComponente = @IdBienComponente`,
-        buildBienComponenteParams(action, { IdBienComponente: idBienComponenteParam })
+        params
       );
       const enrichedSingle = await enrichComponentes(single.recordset || []);
       return NextResponse.json(enrichedSingle[0] || null);
     }
 
-    if (codigoParam) {
-      action = "P";
-      params.Accion = action;
+    if (action === "P" && codigoParam) {
       (params as Record<string, unknown>).CodigoPatrimonial = codigoParam;
-    } else if (serieParam) {
-      action = "S";
-      params.Accion = action;
+    } else if (action === "C" && idComponenteParam) {
+      (params as Record<string, unknown>).IdComponente = idComponenteParam;
+    } else if (action === "A") {
+      if (idAreaParam === null) {
+        return NextResponse.json(
+          { error: "idArea es requerido para la acción A" },
+          { status: 400 }
+        );
+      }
+      (params as Record<string, unknown>).IdArea = idAreaParam;
+    } else if (action === "M" && marcaParam) {
+      (params as Record<string, unknown>).Marca = marcaParam;
+    } else if (action === "S" && serieParam) {
       (params as Record<string, unknown>).Serie = serieParam;
+    } else if (action === "U" && usuarioAsignadoParam) {
+      (params as Record<string, unknown>).UsuarioAsignado = usuarioAsignadoParam;
+    } else if (action === "E" && estadoEquipoParam) {
+      (params as Record<string, unknown>).EstadoEquipo = estadoEquipoParam;
     }
 
     const result = await executeQuery(
@@ -146,6 +297,7 @@ export async function GET(request: Request) {
         @IdBienComponente = @IdBienComponente,
         @CodigoPatrimonial = @CodigoPatrimonial,
         @IdComponente = @IdComponente,
+        @IdArea = @IdArea,
         @Marca = @Marca,
         @Serie = @Serie,
         @UsuarioAsignado = @UsuarioAsignado,
@@ -153,8 +305,10 @@ export async function GET(request: Request) {
       params
     );
 
-    const enrichedRecords = await enrichComponentes(result.recordset || []);
-    return NextResponse.json(enrichedRecords);
+    const componenteNames = await loadComponentesCatalogMap();
+    const enrichedRecords = await enrichComponentes(result.recordset || [], componenteNames);
+    const enrichedWithBienArea = await enrichBienArea(enrichedRecords);
+    return NextResponse.json(enrichedWithBienArea);
   } catch (error) {
     console.error("Error en GET /api/componentes:", error);
     return NextResponse.json(
@@ -171,16 +325,10 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
-    if (!data.IdComponente) {
-      return NextResponse.json(
-        { error: "IdComponente es requerido" },
-        { status: 400 }
-      );
-    }
-
     await executeQuery(
       `EXEC sp_MantenimientoBienComponente
         @Accion = @Accion,
+        @IdBienComponente = @IdBienComponente,
         @CodigoPatrimonial = @CodigoPatrimonial,
         @IdComponente = @IdComponente,
         @Observacion = @Observacion,
@@ -197,7 +345,7 @@ export async function POST(request: Request) {
         @UsuarioAsignado = @UsuarioAsignado,
         @EstadoEquipo = @EstadoEquipo`,
       buildBienComponenteParams("R", {
-        CodigoPatrimonial: data.CodigoPatrimonial && String(data.CodigoPatrimonial).trim() ? String(data.CodigoPatrimonial).trim() : "SIN-CODIGO-PATRIMONIAL",
+        CodigoPatrimonial: normalizePatrimonialCode(data.CodigoPatrimonial),
         IdComponente: parseNullableInt(data.IdComponente),
         Observacion: data.Observacion || null,
         IdUsuario: session.id,
@@ -215,11 +363,12 @@ export async function POST(request: Request) {
       })
     );
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, action: "R" });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error("Error en POST /api/componentes:", error);
     return NextResponse.json(
-      { error: "Error al registrar el componente del bien" },
+      { error: message || "Error al registrar el componente del bien" },
       { status: 500 }
     );
   }
@@ -252,7 +401,7 @@ export async function PATCH(request: Request) {
           IdUsuario: session.id,
         })
       );
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, action: data.Activo ? "T" : "E" });
     }
 
     await executeQuery(
@@ -276,7 +425,7 @@ export async function PATCH(request: Request) {
         @EstadoEquipo = @EstadoEquipo`,
       buildBienComponenteParams("A", {
         IdBienComponente: idBienComponente,
-        CodigoPatrimonial: data.CodigoPatrimonial && String(data.CodigoPatrimonial).trim() ? String(data.CodigoPatrimonial).trim() : "SIN-CODIGO-PATRIMONIAL",
+        CodigoPatrimonial: normalizePatrimonialCode(data.CodigoPatrimonial),
         IdComponente: parseNullableInt(data.IdComponente),
         Observacion: data.Observacion || null,
         IdUsuario: session.id,
@@ -294,7 +443,7 @@ export async function PATCH(request: Request) {
       })
     );
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, action: "A" });
   } catch (error) {
     console.error("Error en PATCH /api/componentes:", error);
     return NextResponse.json(
@@ -325,13 +474,13 @@ export async function DELETE(request: Request) {
         @Accion = @Accion,
         @IdBienComponente = @IdBienComponente,
         @IdUsuario = @IdUsuario`,
-      buildBienComponenteParams("E", {
+      buildBienComponenteParams("D", {
         IdBienComponente: idBienComponente,
         IdUsuario: session.id,
       })
     );
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, action: "D" });
   } catch (error) {
     console.error("Error en DELETE /api/componentes:", error);
     return NextResponse.json(

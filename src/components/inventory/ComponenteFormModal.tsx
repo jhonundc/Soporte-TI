@@ -20,28 +20,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useEffect } from "react";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
+import { useEffect, useMemo, useState } from "react";
 import QuickCreateMarcaModal from "./QuickCreateMarcaModal";
 import { notify } from "@/lib/feedback/toast";
+import React from "react";
 
 const componenteSchema = z.object({
   IdBienComponente: z.string().optional(),
-  IdBien: z.string().min(1, "El bien es requerido"),
-  IdComponente: z.string().min(1, "El componente es requerido"),
+  IdBien: z.string().optional(),
+  IdComponente: z.string().min(1, "Selecciona un componente.").optional(),
   DescripcionModelo: z.string().max(200).optional(),
   Marca: z.string().max(100).optional(),
   Serie: z.string().max(100).optional(),
-  CodigoPatrimonial: z.string().max(100).optional(),
-  ProcesadorEspecificaciones: z.string().max(200).optional(),
+  CodigoPatrimonial: z.string().max(100).nullable().optional(),
+  ProcesadorEspecificaciones: z.string().max(300).optional(),
   RAM: z.string().max(100).optional(),
   Almacenamiento: z.string().max(100).optional(),
   SistemaOperativo: z.string().max(100).optional(),
   UbicacionFisica: z.string().max(200).optional(),
   UsuarioAsignado: z.string().max(200).optional(),
   EstadoEquipo: z.string().max(100).optional(),
-  Cantidad: z.string().refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
-    message: "La cantidad debe ser un número mayor o igual a 0",
-  }),
+  Cantidad: z.string()
+    .min(1, "La cantidad es obligatoria.")
+    .regex(/^[0-9]+$/, "La cantidad debe ser un número entero mayor que cero."),
   Observacion: z.string().optional(),
 });
 
@@ -129,24 +131,80 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
   const selectedAreaName = watch("UbicacionFisica") || "";
   const selectedEstadoName = watch("EstadoEquipo") || "";
 
+  const codigoPatrimonialOptions = useMemo(
+    () =>
+      (bienes ?? [])
+        .map((b: any) => String(b.CodigoPatrimonial || "").trim())
+        .filter((value: string) => Boolean(value))
+        .filter((value: string, index: number, list: string[]) => list.indexOf(value) === index)
+        .map((value: string) => ({ value, label: value })),
+    [bienes]
+  );
+
+// --- SuggestionsList component (local) ---
+function SuggestionsList({
+  query,
+  options,
+  onSelect,
+}: {
+  query?: string;
+  options: { value: string; label: string }[];
+  onSelect: (v: string) => void;
+}) {
+  const q = String(query ?? "").trim().toLowerCase();
+  if (!q) return null;
+  const filtered = options.filter((o) => o.value.toLowerCase().includes(q)).slice(0, 8);
+  if (!filtered.length) return null;
+
+  return (
+    <ul className="absolute z-50 mt-1 max-h-44 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-[var(--shadow-elevated)]">
+      {filtered.map((opt) => (
+        <li key={opt.value}>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onSelect(opt.value)}
+            className="w-full text-left px-2.5 py-2 text-sm hover:bg-muted"
+          >
+            {opt.label}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+
+  // usamos el propio react-hook-form para el campo CodigoPatrimonial (permite escritura libre)
+
   const normalizarCodigo = (value: unknown) =>
     String(value ?? "")
       .trim()
       .toLowerCase()
-      .replace(/\s+/g, "");
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/[^a-z0-9]/g, "");
+
+  const normalizeCodigoPatrimonialInput = (value: unknown) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "SIN ASIGNACIÓN";
+    const normalized = raw.toLowerCase().replace(/\s+/g, "");
+    if (["sin asignación", "sin-asignacion", "sin-asignación", "sinasignación"].includes(normalized)) {
+      return "SIN ASIGNACIÓN";
+    }
+    return raw;
+  };
 
   const buscarBienPorCodigoPatrimonial = (codigo: string) => {
     const normalizedCode = normalizarCodigo(codigo);
     if (!normalizedCode || !Array.isArray(bienes)) {
-      if (watch("IdBien")) {
-        setValue("IdBien", "");
-      }
+      if (watch("IdBien")) setValue("IdBien", "");
       return;
     }
 
     const bienEncontrado = bienes.find((b: any) => {
-      const codigoPatrimonial = normalizarCodigo(b.CodigoPatrimonial);
-      const codigoInventario = normalizarCodigo(b.CodigoInventario);
+      const codigoPatrimonial = normalizarCodigo(b?.CodigoPatrimonial ?? "");
+      const codigoInventario = normalizarCodigo(b?.CodigoInventario ?? "");
       return codigoPatrimonial === normalizedCode || codigoInventario === normalizedCode;
     });
 
@@ -156,18 +214,14 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
       return;
     }
 
+    // If not found, clear IdBien but keep CodigoPatrimonial value for user to edit
     setValue("IdBien", "");
+    console.debug("buscarBienPorCodigoPatrimonial: no match for", codigo, "normalized->", normalizedCode);
   };
 
-  const codigoPatrimonialValido = Boolean(
-    codigoPatrimonialValue &&
-    Array.isArray(bienes) &&
-    bienes.some((b: any) => {
-      const codigoPatrimonial = normalizarCodigo(b.CodigoPatrimonial);
-      const codigoInventario = normalizarCodigo(b.CodigoInventario);
-      return codigoPatrimonial === normalizarCodigo(codigoPatrimonialValue) || codigoInventario === normalizarCodigo(codigoPatrimonialValue);
-    })
-  );
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+
+
 
   useEffect(() => {
     if (open && selectedBien?.CodigoPatrimonial) {
@@ -259,11 +313,10 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
     mutationFn: async (data: ComponenteFormValues) => {
       const url = "/api/componentes";
       const method = componente ? "PATCH" : "POST";
-      const body = data;
       const payload = {
-        ...body,
-        Cantidad: parseInt(body.Cantidad, 10) || 0,
-        IdBienComponente: body.IdBienComponente || componente?.IdBienComponente || "",
+        ...data,
+        Cantidad: data.Cantidad ? parseInt(data.Cantidad, 10) : null,
+        IdBienComponente: data.IdBienComponente || componente?.IdBienComponente || "",
       };
 
       const res = await fetch(url, {
@@ -271,11 +324,18 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || `Error al ${componente ? "actualizar" : "registrar"} el registro`);
+
+      let responseData: any = {};
+      try {
+        responseData = await res.json();
+      } catch {
+        responseData = {};
       }
-      return res.json();
+
+      if (!res.ok) {
+        throw new Error(responseData.error || `Error al ${componente ? "actualizar" : "registrar"} el registro`);
+      }
+      return responseData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["componentes"] });
@@ -285,15 +345,22 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
     onError: (error) => notify.fromError(error),
   });
 
+  const onInvalid = (errors: Record<string, { message?: string }>) => {
+    const firstError = Object.values(errors)[0]?.message;
+    notify.fromError(new Error(firstError || "Completa los campos obligatorios antes de guardar"));
+  };
+
   const onSubmit = (data: ComponenteFormValues) => {
     if (readOnly) return;
 
-    if (data.CodigoPatrimonial && !codigoPatrimonialValido) {
-      notify.fromError(new Error("El código patrimonial ingresado no está registrado en bienes"));
-      return;
-    }
+    const codigoPatrimonial = normalizeCodigoPatrimonialInput(data.CodigoPatrimonial);
+    setValue("CodigoPatrimonial", codigoPatrimonial ?? "SIN ASIGNACIÓN");
+    const payload = {
+      ...data,
+      CodigoPatrimonial: codigoPatrimonial,
+    };
 
-    mutation.mutate(data);
+    mutation.mutate(payload);
   };
 
   return (
@@ -304,7 +371,7 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
             {readOnly ? "Detalle del componente del bien" : componente ? "Editar componente del bien" : "Registrar componente del bien"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4 mt-4">
           <input type="hidden" {...register("IdBienComponente")} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
@@ -328,20 +395,27 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
               {errors.IdComponente && <p className="text-xs text-destructive">{errors.IdComponente.message}</p>}
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground">Código patrimonial *</label>
-              <Input
-                {...register("CodigoPatrimonial")}
-                placeholder="Ej. BP-001"
-                readOnly={readOnly}
-                onChange={(e) => {
-                  setValue("CodigoPatrimonial", e.target.value);
-                  buscarBienPorCodigoPatrimonial(e.target.value);
-                }}
-                onBlur={(e) => buscarBienPorCodigoPatrimonial(e.target.value)}
-              />
+              <label className="text-sm font-medium text-foreground">Código patrimonial</label>
+              <div className="relative">
+                <Input {...register("CodigoPatrimonial")} placeholder="Ej. BP-001 o Sin asignación" readOnly={readOnly} />
+                {!readOnly && (
+                  <SuggestionsList
+                    query={String(watch("CodigoPatrimonial") || "")}
+                    options={codigoPatrimonialOptions}
+                    onSelect={(val) => {
+                      setValue("CodigoPatrimonial", val);
+                      buscarBienPorCodigoPatrimonial(val);
+                      setTimeout(() => {
+                        const el = document.getElementsByName("CodigoPatrimonial")[0] as HTMLInputElement | undefined;
+                        el?.focus();
+                      }, 0);
+                    }}
+                  />
+                )}
+              </div>
               {errors.CodigoPatrimonial && <p className="text-xs text-destructive">{errors.CodigoPatrimonial.message}</p>}
-              {!readOnly && codigoPatrimonialValue && !codigoPatrimonialValido && (
-                <p className="text-xs text-destructive">El código patrimonial ingresado no está registrado en bienes.</p>
+              {!readOnly && (
+                <p className="text-xs text-muted-foreground">Escribe un código patrimonial y selecciona uno existente o déjalo libre para guardar.</p>
               )}
             </div>
           </div>

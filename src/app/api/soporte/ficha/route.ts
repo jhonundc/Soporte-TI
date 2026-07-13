@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { executeQuery } from "@/lib/db";
+import { executeQuery, executeTransactionQuery, getPool, sql } from "@/lib/db";
+import { authSession, guardFailed } from "@/lib/auth/guards";
 import {
   fichaCreateApiSchema,
   fichaDeleteQuerySchema,
@@ -175,6 +176,9 @@ async function enrichFichas(baseRows: any[]) {
 // Obtener todas las fichas de soporte
 export async function GET(request: Request) {
   try {
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
     const { searchParams } = new URL(request.url);
     const queryParsed = parseSearchParams(fichaListQuerySchema, searchParams);
     if ("error" in queryParsed) return queryParsed.error;
@@ -205,6 +209,28 @@ export async function GET(request: Request) {
     else if (abiertos) accion = "O";
     else if (cerrados) accion = "C";
 
+    // If the current user is a soporte role, and no explicit idUsuarioSoporte filter was provided,
+    // limit results to fichas created by this soporte (session.id)
+    let queryParams = {
+      Accion: accion,
+      IdSoporte: idSoporte,
+      NumeroFicha: numeroFicha,
+      IdBien: idBien,
+      Responsable: responsable,
+      Dependencia: dependencia,
+      Ambiente: ambiente,
+      IdPrioridad: idPrioridad,
+      EstadoTicket: estadoTicket,
+      IdUsuarioSoporte: idUsuarioSoporte,
+    } as any;
+
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    const isReportesRequest = searchParams.get("reportes") === "1";
+    if (isSoporte && !idUsuarioSoporte && !isReportesRequest) {
+      queryParams.IdUsuarioSoporte = session.id;
+    }
+
     const result = await executeQuery(
       `EXEC sp_ConsultaSoporte
          @Accion = @Accion,
@@ -217,21 +243,14 @@ export async function GET(request: Request) {
          @IdPrioridad = @IdPrioridad,
          @EstadoTicket = @EstadoTicket,
          @IdUsuarioSoporte = @IdUsuarioSoporte`,
-      {
-        Accion: accion,
-        IdSoporte: idSoporte,
-        NumeroFicha: numeroFicha,
-        IdBien: idBien,
-        Responsable: responsable,
-        Dependencia: dependencia,
-        Ambiente: ambiente,
-        IdPrioridad: idPrioridad,
-        EstadoTicket: estadoTicket,
-        IdUsuarioSoporte: idUsuarioSoporte,
-      }
+      queryParams
     );
 
-    const fichas = await enrichFichas(result.recordset || []);
+    let fichas = await enrichFichas(result.recordset || []);
+
+    if (isSoporte && !isReportesRequest) {
+      fichas = fichas.filter((ficha) => ficha.IdUsuarioSoporte === session.id);
+    }
 
     if (idSoporte) {
       return NextResponse.json(fichas[0] || null);
@@ -247,14 +266,33 @@ export async function GET(request: Request) {
   }
 }
 
+async function findAdminDestinationId(transaction: sql.Transaction) {
+  const result = await executeTransactionQuery(
+    transaction,
+    `SELECT TOP 1 u.IdUsuario
+       FROM Usuarios u
+       INNER JOIN Roles r ON u.IdRol = r.IdRol
+       WHERE u.Activo = 1
+         AND LOWER(r.NombreRol) LIKE '%admin%'
+       ORDER BY u.IdUsuario ASC`
+  );
+  return result.recordset?.[0]?.IdUsuario ?? null;
+}
+
 // Crear una nueva ficha de soporte
 export async function POST(request: Request) {
+  let transaction: sql.Transaction | null = null;
+
   try {
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
+
     const parsed = await parseJsonBody(fichaCreateApiSchema, request);
     if ("error" in parsed) return parsed.error;
     const data = parsed.data;
 
-    const params = {
+    const params: any = {
       Accion: "R",
       NumeroFicha: data.NumeroFicha,
       UnidadOrganica: data.UnidadOrganica || "UNIDAD DE ESTADISTICA E INFORMATICA",
@@ -277,7 +315,19 @@ export async function POST(request: Request) {
       IdUsuarioSoporte: data.IdUsuarioSoporte,
     };
 
-    await executeQuery(
+    // If the creator is a soporte user and IdUsuarioSoporte not provided, set to session.id
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    if (isSoporte && !params.IdUsuarioSoporte) {
+      params.IdUsuarioSoporte = session.id;
+    }
+
+    const pool = await getPool();
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    await executeTransactionQuery(
+      transaction,
       `EXEC sp_MantenimientoSoporte
          @Accion = @Accion,
          @NumeroFicha = @NumeroFicha,
@@ -302,13 +352,85 @@ export async function POST(request: Request) {
       params
     );
 
-    const createdResult = await executeQuery(
+    const createdResult = await executeTransactionQuery(
+      transaction,
       `EXEC sp_ConsultaSoporte @Accion = @Accion, @NumeroFicha = @NumeroFicha`,
       { Accion: "F", NumeroFicha: data.NumeroFicha }
     );
     const createdRows = await enrichFichas(createdResult.recordset || []);
-    return NextResponse.json(createdRows[0] || { success: true }, { status: 201 });
+    const createdSupport = createdRows[0];
+
+    if (!createdSupport || !createdSupport.IdSoporte) {
+      throw new Error("No se pudo obtener la ficha creada");
+    }
+
+    const adminDestinationId = await findAdminDestinationId(transaction);
+    if (!adminDestinationId) {
+      throw new Error("No se encontró un administrador destino para la notificación.");
+    }
+
+    const originUserId = parseInt(String(session.id), 10);
+
+    await executeTransactionQuery(
+      transaction,
+      `EXEC sp_MantenimientoNotificacion
+         @Accion = @Accion,
+         @IdNotificacion = @IdNotificacion,
+         @TipoFicha = @TipoFicha,
+         @IdReferencia = @IdReferencia,
+         @IdUsuarioOrigen = @IdUsuarioOrigen,
+         @IdUsuarioDestino = @IdUsuarioDestino,
+         @Titulo = @Titulo,
+         @Mensaje = @Mensaje,
+         @ObservacionAdministrador = @ObservacionAdministrador`,
+      {
+        Accion: "R",
+        IdNotificacion: null,
+        TipoFicha: "SOPORTE",
+        IdReferencia: createdSupport.IdSoporte,
+        IdUsuarioOrigen: originUserId,
+        IdUsuarioDestino: adminDestinationId,
+        Titulo: `Nueva ficha de soporte ${createdSupport.NumeroFicha}`,
+        Mensaje: `Se ha registrado una nueva ficha de soporte con número ${createdSupport.NumeroFicha}.`,
+        ObservacionAdministrador: null,
+      }
+    );
+
+    const notificationResult = await executeTransactionQuery(
+      transaction,
+      `SELECT TOP 1 IdNotificacion
+         FROM Notificaciones
+         WHERE TipoFicha = @TipoFicha
+           AND IdReferencia = @IdReferencia
+           AND IdUsuarioOrigen = @IdUsuarioOrigen
+           AND Activo = 1
+         ORDER BY FechaCreacion DESC`,
+      {
+        TipoFicha: "SOPORTE",
+        IdReferencia: createdSupport.IdSoporte,
+        IdUsuarioOrigen: originUserId,
+      }
+    );
+
+    await transaction.commit();
+
+    const notificationId = notificationResult.recordset?.[0]?.IdNotificacion ?? null;
+    return NextResponse.json(
+      {
+        ...createdSupport,
+        IdNotificacion: notificationId,
+        IdUsuarioDestino: adminDestinationId,
+      },
+      { status: 201 }
+    );
   } catch (error) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error("Error al revertir transacción:", rollbackError);
+      }
+    }
     console.error("Error en POST /api/soporte/ficha:", error);
     return NextResponse.json(
       { error: "Error al crear la ficha de soporte" },
@@ -320,6 +442,10 @@ export async function POST(request: Request) {
 // Actualizar una ficha de soporte
 export async function PATCH(request: Request) {
   try {
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
+
     const parsed = await parseJsonBody(fichaUpdateApiSchema, request);
     if ("error" in parsed) return parsed.error;
     const data = parsed.data;
@@ -340,6 +466,17 @@ export async function PATCH(request: Request) {
       data.EstadoTicket !== undefined
     ) {
       accion = "E";
+    }
+
+    // If soporte user, ensure they own the ficha before allowing update
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    if (isSoporte) {
+      const ownerRes = await executeQuery(`EXEC sp_ConsultaSoporte @Accion = @Accion, @IdSoporte = @IdSoporte`, { Accion: "I", IdSoporte: id });
+      const ownerRow = (ownerRes.recordset || [])[0] || {};
+      if (ownerRow.IdUsuarioSoporte && ownerRow.IdUsuarioSoporte !== session.id) {
+        return NextResponse.json({ error: "No tiene permisos para modificar esta ficha" }, { status: 403 });
+      }
     }
 
     const params = {
@@ -414,6 +551,21 @@ export async function DELETE(request: Request) {
     const parsed = parseSearchParams(fichaDeleteQuerySchema, searchParams);
     if ("error" in parsed) return parsed.error;
     const id = parsed.data.id;
+
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
+
+    // If soporte user, ensure they own the ficha before allowing close
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    if (isSoporte) {
+      const ownerRes = await executeQuery(`EXEC sp_ConsultaSoporte @Accion = @Accion, @IdSoporte = @IdSoporte`, { Accion: "I", IdSoporte: id });
+      const ownerRow = (ownerRes.recordset || [])[0] || {};
+      if (ownerRow.IdUsuarioSoporte && ownerRow.IdUsuarioSoporte !== session.id) {
+        return NextResponse.json({ error: "No tiene permisos para cerrar esta ficha" }, { status: 403 });
+      }
+    }
 
     await executeQuery(
       `EXEC sp_MantenimientoSoporte

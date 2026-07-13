@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     const [bienesResult, componentesResult, softwareResult, countsResult, areaResult, mesResult, diaResult] = await Promise.all([
       executeQuery(`EXEC sp_ConsultaBien @Accion = @Accion`, { Accion: "T" }).catch(() => ({ recordset: [] })),
       executeQuery(`EXEC sp_ConsultaBienComponente @Accion = @Accion`, { Accion: "L" }).catch(() => ({ recordset: [] })),
-      executeQuery(`SELECT IdSoftware FROM BienSoftware`).catch(() => ({ recordset: [] })),
+      executeQuery(`EXEC sp_ConsultaSoftware @Accion = @Accion`, { Accion: "A" }).catch(() => ({ recordset: [] })),
       executeQuery(`
         SELECT
           (SELECT COUNT(*) FROM BajasBienes) AS totalBajas,
@@ -48,17 +48,22 @@ export async function GET(request: Request) {
     ]);
 
     const counts = countsResult.recordset?.[0] || {};
-    const totalBienes = bienesResult.recordset?.length ?? 0;
+
+    const isActive = (val: any) =>
+      val === true || val === 1 || String(val) === "1" || String(val).toLowerCase() === "true";
+
     const totalBienesOperativos =
       bienesResult.recordset?.filter(
         (row: { Activo?: number | boolean; Estado_EstadoBien?: string }) =>
-          row.Activo === 1 ||
-          row.Activo === true ||
-          String(row.Estado_EstadoBien || "").toLowerCase().includes("operativ")
+          isActive(row.Activo) || String(row.Estado_EstadoBien || "").toLowerCase().includes("operativ")
       ).length ?? 0;
-    const totalBienesInoperativos = totalBienes - totalBienesOperativos;
-    const totalComponentes = componentesResult.recordset?.length ?? 0;
-    const totalSoftware = softwareResult.recordset?.length ?? 0;
+
+    const totalBienes = totalBienesOperativos;
+    const totalBienesInoperativos = (bienesResult.recordset?.length ?? 0) - totalBienesOperativos;
+
+    const totalComponentes = (componentesResult.recordset || []).filter((r: any) => isActive(r.Activo)).length ?? 0;
+
+    const totalSoftware = (softwareResult.recordset || []).filter((r: any) => isActive(r.Activo)).length ?? 0;
 
     // Formatear fichas por área
     const fichasPorArea: Record<string, number> = {};

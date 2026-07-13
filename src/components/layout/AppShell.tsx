@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 
 import { usePathname, useRouter } from "next/navigation";
 
-import { LogOut, Menu, User, Key } from "lucide-react";
+import { LogOut, Menu, User, Key, Bell } from "lucide-react";
 
 import Sidebar from "@/components/layout/Sidebar";
 
@@ -81,6 +81,13 @@ export function AppShell({ children }: AppShellProps) {
   const { data: sessionData } = useSession();
   const role = String(sessionData?.user?.role || "").toLowerCase();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const displayName = (sessionData as any)?.user?.name || (sessionData as any)?.user?.Nombres || (sessionData as any)?.user?.username || "R";
+  const shortName = (() => {
+    const s = String(displayName || "").trim();
+    const parts = s.split(/\s+/).filter(Boolean);
+    if (!parts.length) return "";
+    return parts.length > 1 ? `${parts[0]} ${parts[1]}` : parts[0];
+  })();
 
   useEffect(() => {
 
@@ -90,7 +97,7 @@ export function AppShell({ children }: AppShellProps) {
 
       role.includes("soporte") &&
 
-      pathname !== "/reportes" &&
+      !pathname.startsWith("/reportes") &&
 
       pathname !== "/" &&
 
@@ -98,7 +105,9 @@ export function AppShell({ children }: AppShellProps) {
 
       pathname !== "/redes" &&
 
-      !pathname.startsWith("/soporte")
+      !pathname.startsWith("/soporte") &&
+
+      !pathname.startsWith("/centro-notificaciones")
 
     ) {
 
@@ -234,76 +243,55 @@ export function AppShell({ children }: AppShellProps) {
 
           </div>
 
-          <DropdownMenu>
-
-            <DropdownMenuTrigger
-
-              className="flex cursor-pointer items-center rounded-lg p-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-
-              aria-label="Menú de cuenta de usuario"
-
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-lg text-muted-foreground hover:text-foreground"
+              aria-label="Notificaciones"
+              onClick={() => router.push("/centro-notificaciones")}
             >
-
-              <Avatar className="size-8" aria-hidden="true">
-
-                <AvatarFallback className="bg-primary text-xs text-primary-foreground">
-
-                  R
-
-                </AvatarFallback>
-
-              </Avatar>
-
-            </DropdownMenuTrigger>
-
-            <DropdownMenuContent align="end" className="w-56">
-
-              <div className="px-2 py-1.5 text-sm font-semibold text-foreground">Mi cuenta</div>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem className="cursor-pointer">
-
-                <User className="mr-2 size-4" />
-
-                <span>Agregar perfil (foto)</span>
-
-              </DropdownMenuItem>
-
-              <DropdownMenuItem className="cursor-pointer">
-
-                <Key className="mr-2 size-4" />
-
-                <span>Cambiar clave</span>
-
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem
-
-                className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
-
-                onClick={async () => {
-
-                  await fetch("/api/auth/logout", { method: "POST" });
-
-                  window.location.href = "/login";
-
-                }}
-
+              <Bell className="size-5" />
+            </Button>
+            <span className="hidden sm:inline-block text-sm font-medium">{displayName}</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="flex cursor-pointer items-center rounded-lg p-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label="Menú de cuenta de usuario"
               >
+                <Avatar className="size-8" aria-hidden="true">
+                  <AvatarFallback className="bg-primary text-xs text-primary-foreground">
+                    <User className="size-4" />
+                  </AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
 
-                <LogOut className="mr-2 size-4" />
-
-                <span>Cerrar sesión</span>
-
-              </DropdownMenuItem>
-
-            </DropdownMenuContent>
-
-          </DropdownMenu>
-
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-2 py-1.5 text-sm font-semibold text-foreground">Mi cuenta</div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="cursor-pointer">
+                  <User className="mr-2 size-4" />
+                  <span>Agregar perfil (foto)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer">
+                  <Key className="mr-2 size-4" />
+                  <span>Cambiar clave</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  onClick={async () => {
+                    await fetch("/api/auth/logout", { method: "POST" });
+                    window.location.href = "/login";
+                  }}
+                >
+                  <LogOut className="mr-2 size-4" />
+                  <span>Cerrar sesión</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </header>
 
 

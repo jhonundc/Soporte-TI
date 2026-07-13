@@ -699,7 +699,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
           }
           cell.alignment = {
             vertical: "middle",
-            horizontal: cell.col === 3 ? "left" : "center",
+            horizontal: Number(cell.col) === 3 ? "left" : "center",
           };
         });
       }
@@ -916,7 +916,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <div className="min-w-[130px] flex-1">
                                 <Select
                                   value={categoriaValue || "__empty__"}
-                                  onValueChange={(val) => updateRowField(r.Fila, "Categoria", val === "__empty__" ? "" : val)}
+                                  onValueChange={(val) => updateRowField(r.Fila, "Categoria", val === "__empty__" ? "" : (val ?? ""))}
                                 >
                                   <SelectTrigger className="h-7 border-red-300 text-red-700">
                                     <SelectValue placeholder="Seleccionar" />
@@ -950,7 +950,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <div className="min-w-[130px] flex-1">
                                 <Select
                                   value={marcaValue || "__empty__"}
-                                  onValueChange={(val) => updateRowField(r.Fila, "Marca", val === "__empty__" ? "" : val)}
+                                  onValueChange={(val) => updateRowField(r.Fila, "Marca", val === "__empty__" ? "" : (val ?? ""))}
                                 >
                                   <SelectTrigger className="h-7 border-red-300 text-red-700">
                                     <SelectValue placeholder="Seleccionar" />
@@ -984,7 +984,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <div className="min-w-[130px] flex-1">
                                 <Select
                                   value={areaValue || "__empty__"}
-                                  onValueChange={(val) => updateRowField(r.Fila, "Area", val === "__empty__" ? "" : val)}
+                                  onValueChange={(val) => updateRowField(r.Fila, "Area", val === "__empty__" ? "" : (val ?? ""))}
                                 >
                                   <SelectTrigger className="h-7 border-red-300 text-red-700">
                                     <SelectValue placeholder="Seleccionar" />
@@ -1016,7 +1016,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                           {isFixMode ? (
                             <div className="flex items-center gap-1">
                               <div className="min-w-[130px] flex-1">
-                                <Select value={condicionValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "Condicion", val === "__empty__" ? "" : val)}>
+                                <Select value={condicionValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "Condicion", val === "__empty__" ? "" : (val ?? ""))}>
                                   <SelectTrigger className="h-7 border-red-300 text-red-700">
                                     <SelectValue placeholder="Seleccionar" />
                                   </SelectTrigger>
@@ -1045,7 +1045,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                         </td>
                         <td className={`px-2 py-1 ${r.flags.estado ? "text-red-600 font-semibold" : ""}`}>
                           {isFixMode && r.flags.estado ? (
-                            <Select value={estadoValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "EstadoBien", val === "__empty__" ? "" : val)}>
+                            <Select value={estadoValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "EstadoBien", val === "__empty__" ? "" : (val ?? ""))}>
                               <SelectTrigger className="h-7 border-red-300 text-red-700">
                                 <SelectValue placeholder="Seleccionar" />
                               </SelectTrigger>

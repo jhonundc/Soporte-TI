@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   nullableInt,
   nullableString,
+  optionalBooleanLike,
   requiredPositiveInt,
   requiredString,
 } from "./common";
@@ -41,6 +42,7 @@ export const bajaDeleteQuerySchema = z.object({
 
 export const bajaListQuerySchema = z.object({
   numeroFicha: nullableString.optional(),
+  reportes: optionalBooleanLike.optional(),
 });
 
 export type BajaCreateApiInput = z.infer<typeof bajaCreateApiSchema>;

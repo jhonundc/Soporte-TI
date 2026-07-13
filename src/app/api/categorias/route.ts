@@ -31,15 +31,14 @@ export async function POST(request: Request) {
     }
 
     const result = await executeQuery(
-      `INSERT INTO CategoriasBienes (CategoriaBien, Activo) 
-       OUTPUT INSERTED.* 
-       VALUES (@CategoriaBien, 1)`,
+      `EXEC sp_MantenimientoCategoriaBien @Accion = @Accion, @CategoriaBien = @CategoriaBien`,
       {
+        Accion: "R",
         CategoriaBien: data.CategoriaBien,
       }
     );
-    
-    return NextResponse.json(result.recordset[0], { status: 201 });
+
+    return NextResponse.json(result.recordset[0] || { Mensaje: "Categoría registrada" }, { status: 201 });
   } catch (error) {
     console.error("Error en POST /api/categorias:", error);
     return NextResponse.json(
@@ -54,32 +53,35 @@ export async function PATCH(request: Request) {
   try {
     const data = await request.json();
     
-    if (!data.IdCategoria || !data.CategoriaBien) {
-      return NextResponse.json(
-        { error: "El ID y el nombre de la categoría son requeridos" },
-        { status: 400 }
-      );
+    const id = data.IdCategoria ? parseInt(data.IdCategoria) : null;
+    if (!id) {
+      return NextResponse.json({ error: "IdCategoria es requerido" }, { status: 400 });
     }
 
-    const result = await executeQuery(
-      `UPDATE CategoriasBienes 
-       SET CategoriaBien = @CategoriaBien 
-       OUTPUT INSERTED.* 
-       WHERE IdCategoria = @IdCategoria`,
+    // Soporte para activar/desactivar mediante campo Activar
+    if (data.Activar === true || data.Activar === false) {
+      const accion = data.Activar ? "T" : "E";
+      const result = await executeQuery(
+        `EXEC sp_MantenimientoCategoriaBien @Accion = @Accion, @IdCategoria = @IdCategoria`,
+        { Accion: accion, IdCategoria: id }
+      );
+      return NextResponse.json(result.recordset[0] || { Mensaje: accion === "T" ? "Categoría activada" : "Categoría desactivada" });
+    }
+
+    if (!data.CategoriaBien) {
+      return NextResponse.json({ error: "El nombre de la categoría es requerido para actualizar" }, { status: 400 });
+    }
+
+    const updateResult = await executeQuery(
+      `EXEC sp_MantenimientoCategoriaBien @Accion = @Accion, @IdCategoria = @IdCategoria, @CategoriaBien = @CategoriaBien`,
       {
-        IdCategoria: parseInt(data.IdCategoria),
+        Accion: "A",
+        IdCategoria: id,
         CategoriaBien: data.CategoriaBien,
       }
     );
-    
-    if (result.recordset.length === 0) {
-      return NextResponse.json(
-        { error: "Categoría no encontrada" },
-        { status: 404 }
-      );
-    }
 
-    return NextResponse.json(result.recordset[0]);
+    return NextResponse.json(updateResult.recordset[0] || { Mensaje: "Categoría actualizada correctamente." });
   } catch (error) {
     console.error("Error en PATCH /api/categorias:", error);
     return NextResponse.json(
@@ -101,25 +103,31 @@ export async function DELETE(request: Request) {
         { status: 400 }
       );
     }
+    const permanent = searchParams.get("permanent") === "1" || searchParams.get("permanent") === "true";
+    const accion = permanent ? "D" : "E";
 
-    const result = await executeQuery(
-      `UPDATE CategoriasBienes 
-       SET Activo = 0 
-       OUTPUT INSERTED.* 
-       WHERE IdCategoria = @IdCategoria`,
-      {
-        IdCategoria: parseInt(id),
-      }
-    );
-    
-    if (result.recordset.length === 0) {
-      return NextResponse.json(
-        { error: "Categoría no encontrada" },
-        { status: 404 }
+    try {
+      const result = await executeQuery(
+        `EXEC sp_MantenimientoCategoriaBien @Accion = @Accion, @IdCategoria = @IdCategoria`,
+        {
+          Accion: accion,
+          IdCategoria: parseInt(id),
+        }
       );
-    }
 
-    return NextResponse.json(result.recordset[0]);
+      if (result.recordset.length === 0) {
+        return NextResponse.json(
+          { error: "Categoría no encontrada" },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(result.recordset[0]);
+    } catch (err: any) {
+      const msg = (err && err.message) || "Error al eliminar la categoría";
+      console.error("Error al ejecutar sp_MantenimientoCategoriaBien (DELETE):", err);
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
   } catch (error) {
     console.error("Error en DELETE /api/categorias:", error);
     return NextResponse.json(

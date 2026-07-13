@@ -13,6 +13,8 @@ export const fichaService = {
     return apiFetch<FichaSoporteRecord[]>(`/api/soporte/ficha${query ? `?${query}` : ""}`);
   },
 
+  getById: (id: number) => apiFetch<FichaSoporteRecord>(`/api/soporte/ficha?id=${id}`),
+
   save: (data: Record<string, unknown>, editingId?: number) =>
     apiFetch<FichaSoporteRecord>("/api/soporte/ficha", {
       method: editingId ? "PATCH" : "POST",

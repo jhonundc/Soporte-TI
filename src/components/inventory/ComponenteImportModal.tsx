@@ -13,17 +13,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Plus, UploadCloud } from "lucide-react";
+import { notify } from "@/lib/feedback/toast";
 
 type ImportRow = {
   Fila: number;
+  CodigoPatrimonial: string | null;
   NombreComponente: string | null;
   Marca: string | null;
   IdMarca: number | null;
+  IdComponente?: number | null;
   Modelo: string | null;
   NumeroSerie: string | null;
+  Serie?: string | null;
+  DescripcionModelo?: string | null;
+  ProcesadorEspecificaciones?: string | null;
+  RAM?: string | null;
+  Almacenamiento?: string | null;
+  SistemaOperativo?: string | null;
+  UsuarioAsignado?: string | null;
   Capacidad: string | null;
   Observacion: string | null;
   Cantidad: number | null;
+  UbicacionFisica: string | null;
+  EstadoEquipo: string | null;
 };
 
 type ImportResult = {
@@ -34,18 +46,24 @@ type ImportResult = {
 };
 
 type ResultErrorFlags = {
+  codigoPatrimonial: boolean;
   nombreComponente: boolean;
   marca: boolean;
   numeroSerie: boolean;
   cantidad: boolean;
+  ubicacionFisica: boolean;
+  estadoEquipo: boolean;
 };
 
 type RowResultView = {
   Fila: number;
+  CodigoPatrimonial: string;
   NombreComponente: string;
   Marca: string;
   NumeroSerie: string;
   Cantidad: number | null;
+  UbicacionFisica: string;
+  EstadoEquipo: string;
   Estado: "OK" | "ERROR";
   flags: ResultErrorFlags;
 };
@@ -57,6 +75,9 @@ type CatalogOption = {
 
 type ImportCatalogs = {
   marcas: CatalogOption[];
+  componentes?: CatalogOption[];
+  areas?: CatalogOption[];
+  estados?: CatalogOption[];
 };
 
 interface ComponenteImportModalProps {
@@ -95,20 +116,61 @@ function normalizeText(value: unknown): string {
 function getErrorFlags(message: string): ResultErrorFlags {
   const msg = normalizeText(message);
   return {
+    codigoPatrimonial: msg.includes("patrimonial") || msg.includes("codigo"),
     nombreComponente: msg.includes("nombre"),
     marca: msg.includes("marca"),
     numeroSerie: msg.includes("serie"),
     cantidad: msg.includes("cantidad"),
+    ubicacionFisica: msg.includes("ubicacion"),
+    estadoEquipo: msg.includes("estado"),
   };
 }
 
+function resolveComponenteIdByNombre(nombre: string | null, componentes: CatalogOption[] = []): number | null {
+  if (!nombre) return null;
+  const normalizedValue = normalizeText(nombre);
+  const item = componentes.find((comp) => normalizeText(comp.nombre) === normalizedValue);
+  return item?.id ?? null;
+}
+
 async function fetchImportCatalogs(): Promise<ImportCatalogs> {
-  const res = await fetch("/api/componentes/importar/catalogos");
-  if (!res.ok) throw new Error("No se pudieron cargar catálogos para importación de componentes");
-  const data = await res.json();
-  return {
-    marcas: Array.isArray(data?.marcas) ? data.marcas : [],
-  };
+  const [catalogRes, componentesRes] = await Promise.allSettled([
+    fetch("/api/componentes/importar/catalogos"),
+    fetch("/api/componentes-catalogo"),
+  ]);
+
+  const marcas: CatalogOption[] = [];
+  const componentes: CatalogOption[] = [];
+  const areas: CatalogOption[] = [];
+  const estados: CatalogOption[] = [];
+
+  if (catalogRes.status === "fulfilled") {
+    try {
+      const data = await catalogRes.value.json();
+      if (Array.isArray(data?.marcas)) data.marcas.forEach((m: any) => marcas.push({ id: m.id, nombre: String(m.nombre ?? "") }));
+      if (Array.isArray(data?.areas)) data.areas.forEach((a: any) => areas.push({ id: a.id, nombre: String(a.nombre ?? "") }));
+      if (Array.isArray(data?.estados)) data.estados.forEach((s: any) => estados.push({ id: s.id, nombre: String(s.nombre ?? "") }));
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  if (componentesRes.status === "fulfilled") {
+    try {
+      const data = await componentesRes.value.json();
+      if (Array.isArray(data)) {
+        data.forEach((c: any) => {
+          const nombre = String(c?.NombreComponente ?? c?.nombre ?? "").trim();
+          const id = Number(c?.IdComponente ?? c?.id ?? 0) || 0;
+          if (nombre) componentes.push({ id, nombre });
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return { marcas, componentes, areas, estados };
 }
 
 function mapExcelRows(rows: Record<string, unknown>[]): ImportRow[] {
@@ -127,26 +189,46 @@ function mapExcelRows(rows: Record<string, unknown>[]): ImportRow[] {
 
       return {
         Fila: toNullableInt(get("Fila")) ?? index + 2,
-        NombreComponente: toNullableString(get("NombreComponente", "Nombre Componente")),
+        CodigoPatrimonial: toNullableString(get("CodigoPatrimonial", "Codigo Patrimonial", "Cod Patrimonial")),
+        NombreComponente: toNullableString(get("NombreComponente", "Nombre Componente", "Componente")),
         Marca: toNullableString(get("Marca")),
         IdMarca: toNullableInt(get("IdMarca", "Id Marca", "MarcaId")),
         Modelo: toNullableString(get("Modelo")),
+        DescripcionModelo: toNullableString(get("DescripcionModelo", "Descripcion Modelo", "Descripcion", "Modelo")),
         NumeroSerie: toNullableString(get("NumeroSerie", "Numero Serie", "Serie")),
+        Serie: toNullableString(get("Serie", "NumeroSerie", "Numero Serie", "Serie")) || toNullableString(get("NumeroSerie", "Numero Serie", "Serie")),
+        ProcesadorEspecificaciones: toNullableString(get("ProcesadorEspecificaciones", "Procesador Especificaciones", "Procesador")),
+        RAM: toNullableString(get("RAM", "Memoria", "Memoria RAM")),
+        Almacenamiento: toNullableString(get("Almacenamiento", "Disco", "Storage", "Almacenamiento")),
+        SistemaOperativo: toNullableString(get("SistemaOperativo", "Sistema Operativo", "SO")),
+        UsuarioAsignado: toNullableString(get("UsuarioAsignado", "Usuario Asignado", "Asignado a", "Usuario")),
         Capacidad: toNullableString(get("Capacidad")),
         Observacion: toNullableString(get("Observacion", "Observación")),
         Cantidad: toNullableInt(get("Cantidad")),
+        UbicacionFisica: toNullableString(get("UbicacionFisica", "Ubicacion Fisica", "Ubicación Física")),
+        EstadoEquipo: toNullableString(get("EstadoEquipo", "Estado Equipo", "Estado")),
       };
     })
     .filter((row) => {
       return (
+        row.CodigoPatrimonial ||
         row.NombreComponente ||
         row.Marca ||
         row.IdMarca ||
         row.Modelo ||
+        row.DescripcionModelo ||
         row.NumeroSerie ||
+        row.Serie ||
+        row.ProcesadorEspecificaciones ||
+        row.RAM ||
+        row.Almacenamiento ||
+        row.SistemaOperativo ||
+        row.UsuarioAsignado ||
         row.Capacidad ||
         row.Observacion ||
-        row.Cantidad
+        row.Cantidad ||
+        row.UbicacionFisica ||
+        row.EstadoEquipo
       );
     });
 }
@@ -160,7 +242,7 @@ function extractSheetObjects(firstSheet: XLSX.WorkSheet): Record<string, unknown
 
   if (!matrix.length) return [];
 
-  const expected = ["nombrecomponente", "marca", "modelo", "numeroserie", "cantidad"];
+  const expected = ["componente", "nombrecomponente", "marca", "modelo", "numeroserie", "cantidad"];
 
   let headerIndex = -1;
   for (let i = 0; i < matrix.length; i += 1) {
@@ -232,12 +314,85 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
     }
   };
 
-  const importMutation = useMutation({
-    mutationFn: async (payloadRows: ImportRow[]) => {
-      const res = await fetch("/api/componentes/importar", {
+  const createComponenteOption = async (fila: number) => {
+    const value = window.prompt("Escribe el nombre del nuevo componente:")?.trim();
+    if (!value) return;
+
+    try {
+      setIsCreatingCatalog(true);
+      const res = await fetch("/api/componentes-catalogo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ componentes: payloadRows }),
+        body: JSON.stringify({ NombreComponente: value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo crear el componente");
+      await refetchCatalogs();
+      updateRowField(fila, "NombreComponente", value);
+    } catch (error: any) {
+      alert(error?.message || "Error al crear el componente");
+    } finally {
+      setIsCreatingCatalog(false);
+    }
+  };
+
+  const createAreaOption = async (fila: number) => {
+    const value = window.prompt("Escribe el nombre de la nueva área:")?.trim();
+    if (!value) return;
+
+    try {
+      setIsCreatingCatalog(true);
+      const res = await fetch("/api/areas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ NombreArea: value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo crear el área");
+      await refetchCatalogs();
+      updateRowField(fila, "UbicacionFisica", value);
+    } catch (error: any) {
+      alert(error?.message || "Error al crear el área");
+    } finally {
+      setIsCreatingCatalog(false);
+    }
+  };
+
+  const createEstadoOption = async (fila: number) => {
+    const value = window.prompt("Escribe el nombre del nuevo estado:")?.trim();
+    if (!value) return;
+
+    try {
+      setIsCreatingCatalog(true);
+      const res = await fetch("/api/estados", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ EstadoBien: value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo crear el estado");
+      await refetchCatalogs();
+      updateRowField(fila, "EstadoEquipo", value);
+    } catch (error: any) {
+      alert(error?.message || "Error al crear el estado");
+    } finally {
+      setIsCreatingCatalog(false);
+    }
+  };
+
+  const importMutation = useMutation({
+    mutationFn: async (payload: { rows: ImportRow[]; validateOnly?: boolean }) => {
+      const payloadRows = payload.rows || [];
+      const validateOnly = Boolean(payload.validateOnly);
+      const rowsToSend = payloadRows.map((row) => ({
+        ...row,
+        IdComponente: row.IdComponente ?? resolveComponenteIdByNombre(row.NombreComponente, importCatalogs?.componentes),
+      }));
+
+      const res = await fetch("/api/componentes/importar/bienes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bienesComponentes: rowsToSend, validateOnly }),
       });
 
       if (!res.ok) {
@@ -248,14 +403,70 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
       return res.json();
     },
     onSuccess: (data) => {
-      setResults(Array.isArray(data?.resultados) ? data.resultados : []);
+      const resultados = Array.isArray(data?.resultados) ? data.resultados : [];
       setSummary(data?.resumen ?? { Insertados: 0, Errores: 0 });
+
+      // Si estamos en modo 'arreglar errores', quitar automáticamente las filas que se importaron correctamente
+      if (isFixMode) {
+        const okFilas = new Set(resultados.filter((r: ImportResult) => r.Estado === "OK").map((r: ImportResult) => r.Fila));
+        if (okFilas.size) {
+          setRows((prev) => prev.filter((row) => !okFilas.has(row.Fila)));
+          notify.success(`${okFilas.size} fila(s) corregida(s) y removida(s)`);
+        }
+        // Mantener en 'results' solo los errores restantes
+        const remaining = resultados.filter((r: ImportResult) => r.Estado !== "OK");
+        setResults(remaining);
+
+        if (remaining.length === 0) {
+          setIsFixMode(false);
+          notify.success("No quedan errores por corregir");
+        }
+      } else {
+        setResults(resultados);
+      }
+
       if (typeof onImported === "function") onImported();
     },
     onError: (error: any) => {
       alert(error?.message || "Error al importar");
     },
   });
+
+  const handleToggleFixMode = async () => {
+    if (!isFixMode) {
+      setIsFixMode(true);
+      return;
+    }
+
+    // finishing edit: validate only the rows that previously had errors
+    const payloadRows = rows.filter((row) => errorFilaSet.has(row.Fila));
+    if (!payloadRows.length) {
+      setIsFixMode(false);
+      return;
+    }
+
+    // Run validation-only mutation and handle its success locally
+    importMutation.mutate(
+      { rows: payloadRows, validateOnly: true },
+      {
+        onSuccess: (data: any) => {
+          const resultados = Array.isArray(data?.resultados) ? data.resultados : [];
+          // Remove OK filas from rows and update results
+          const okFilas = new Set(resultados.filter((r: any) => r.Estado === "OK").map((r: any) => r.Fila));
+          if (okFilas.size) {
+            setRows((prev) => prev.filter((row) => !okFilas.has(row.Fila)));
+            notify.success(`${okFilas.size} fila(s) corregida(s) y removida(s)`);
+          }
+          const remaining = resultados.filter((r: any) => r.Estado !== "OK");
+          setResults(remaining);
+          setIsFixMode(false);
+        },
+        onError: (err: any) => {
+          alert(err?.message || "Error en validación");
+        },
+      }
+    );
+  };
 
   const previewRows = useMemo(() => rows.slice(0, 8), [rows]);
 
@@ -273,10 +484,13 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
       if (!row) {
         grouped.set(item.Fila, {
           Fila: item.Fila,
+          CodigoPatrimonial: source?.CodigoPatrimonial || "-",
           NombreComponente: item.NombreComponente || source?.NombreComponente || "-",
           Marca: source?.Marca || (source?.IdMarca ? String(source.IdMarca) : "-"),
           NumeroSerie: source?.NumeroSerie || "-",
           Cantidad: source?.Cantidad ?? null,
+          UbicacionFisica: source?.UbicacionFisica || "-",
+          EstadoEquipo: source?.EstadoEquipo || "-",
           Estado: item.Estado,
           flags,
         });
@@ -288,10 +502,13 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
       }
 
       row.flags = {
+        codigoPatrimonial: row.flags.codigoPatrimonial || flags.codigoPatrimonial,
         nombreComponente: row.flags.nombreComponente || flags.nombreComponente,
         marca: row.flags.marca || flags.marca,
         numeroSerie: row.flags.numeroSerie || flags.numeroSerie,
         cantidad: row.flags.cantidad || flags.cantidad,
+        ubicacionFisica: row.flags.ubicacionFisica || flags.ubicacionFisica,
+        estadoEquipo: row.flags.estadoEquipo || flags.estadoEquipo,
       };
     }
 
@@ -313,7 +530,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
 
   const updateRowField = (
     fila: number,
-    field: "NombreComponente" | "Marca" | "NumeroSerie" | "Cantidad",
+    field: "CodigoPatrimonial" | "NombreComponente" | "Marca" | "NumeroSerie" | "Cantidad" | "UbicacionFisica" | "EstadoEquipo",
     value: string
   ) => {
     setRows((prev) =>
@@ -322,6 +539,9 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
         if (field === "Marca") return { ...row, Marca: value || null, IdMarca: null };
         if (field === "Cantidad") return { ...row, Cantidad: toNullableInt(value) };
         if (field === "NumeroSerie") return { ...row, NumeroSerie: value || null };
+        if (field === "CodigoPatrimonial") return { ...row, CodigoPatrimonial: value || null };
+        if (field === "UbicacionFisica") return { ...row, UbicacionFisica: value || null };
+        if (field === "EstadoEquipo") return { ...row, EstadoEquipo: value || null };
         return { ...row, NombreComponente: value || null };
       })
     );
@@ -367,19 +587,202 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
     }
 
     setIsFixMode(false);
-    importMutation.mutate(payloadRows);
+    importMutation.mutate({ rows: payloadRows });
   };
 
-  const handleDownloadTemplate = () => {
-    const template = [
-      ["Fila", "NombreComponente", "Marca", "Modelo", "NumeroSerie", "Capacidad", "Observacion", "Cantidad"],
-      [2, "Disco Duro", "Seagate", "BarraCuda", "SN-001", "1TB", "Demo", 1],
-    ];
+  const handleDownloadTemplate = async () => {
+    setIsCreatingCatalog(true);
+    try {
+      const ExcelJS = await import("exceljs");
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = "Inventario TI";
+      workbook.created = new Date();
 
-    const ws = XLSX.utils.aoa_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Plantilla_Componentes");
-    XLSX.writeFile(wb, `Plantilla_Importacion_Componentes_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const ws = workbook.addWorksheet("Plantilla_Componentes", {
+        views: [{ state: "frozen", ySplit: 3 }],
+      });
+
+      const headers = [
+        "Fila",
+        "CodigoPatrimonial",
+        "Componente",
+        "Observacion",
+        "Cantidad",
+        "DescripcionModelo",
+        "Marca",
+        "NumeroSerie",
+        "ProcesadorEspecificaciones",
+        "RAM",
+        "Almacenamiento",
+        "SistemaOperativo",
+        "UbicacionFisica",
+        "UsuarioAsignado",
+        "EstadoEquipo",
+      ];
+
+      ws.columns = [
+        { key: "Fila", width: 8 },
+        { key: "CodigoPatrimonial", width: 20 },
+        { key: "Componente", width: 28 },
+        { key: "Observacion", width: 36 },
+        { key: "Cantidad", width: 10 },
+        { key: "DescripcionModelo", width: 28 },
+        { key: "Marca", width: 18 },
+        { key: "NumeroSerie", width: 18 },
+        { key: "ProcesadorEspecificaciones", width: 32 },
+        { key: "RAM", width: 14 },
+        { key: "Almacenamiento", width: 16 },
+        { key: "SistemaOperativo", width: 18 },
+        { key: "UbicacionFisica", width: 28 },
+        { key: "UsuarioAsignado", width: 22 },
+        { key: "EstadoEquipo", width: 16 },
+      ];
+
+      ws.mergeCells("A1:O1");
+      ws.getCell("A1").value = "PLANTILLA DE CARGA MASIVA DE BIENES - COMPONENTES";
+      ws.getCell("A1").font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
+      ws.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
+      ws.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A8A" } };
+      ws.getRow(1).height = 28;
+
+      ws.mergeCells("A2:O2");
+      ws.getCell("A2").value = `Sistema Inventario TI | ${new Date().toLocaleDateString("es-PE")}`;
+      ws.getCell("A2").font = { bold: true, size: 10, color: { argb: "FF0F172A" } };
+      ws.getCell("A2").alignment = { horizontal: "center", vertical: "middle" };
+      ws.getCell("A2").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+      ws.getRow(2).height = 20;
+
+      ws.addRow(headers);
+      const headerRow = ws.getRow(3);
+      headerRow.height = 22;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F766E" } };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFFFFFFF" } },
+          left: { style: "thin", color: { argb: "FFFFFFFF" } },
+          bottom: { style: "thin", color: { argb: "FFFFFFFF" } },
+          right: { style: "thin", color: { argb: "FFFFFFFF" } },
+        };
+      });
+
+      ws.addRow([
+        2,
+        "",
+        "Disco Duro 1TB",
+        "Ejemplo de observación",
+        1,
+        "BarraCuda",
+        "Seagate",
+        "SN-001",
+        "Intel i5",
+        "8GB",
+        "1TB",
+        "Windows 10",
+        "Almacén A",
+        "usuario@dominio.local",
+        "Operativo",
+      ]);
+
+      for (let r = 4; r <= 120; r += 1) {
+        const row = ws.getRow(r);
+        for (let c = 1; c <= headers.length; c += 1) {
+          const cell = row.getCell(c);
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFD1D5DB" } },
+            left: { style: "thin", color: { argb: "FFD1D5DB" } },
+            bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+            right: { style: "thin", color: { argb: "FFD1D5DB" } },
+          };
+          if (r % 2 === 0) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+          }
+          cell.alignment = { vertical: "middle", horizontal: c === 6 || c === 3 ? "left" : "center" };
+        }
+      }
+
+      ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: headers.length } };
+
+      // Catalogos de referencia (marcas y, si hay, componentes)
+      const catalogResponse = await fetch("/api/componentes/importar/catalogos");
+      const catalogData = catalogResponse.ok ? await catalogResponse.json() : {};
+
+      const marcas = Array.isArray(catalogData?.marcas) ? catalogData.marcas : [];
+      const componentes: { id: number | string; nombre: string }[] = [];
+      try {
+        const compRes = await fetch("/api/componentes-catalogo");
+        const compData = compRes.ok ? await compRes.json() : {};
+        if (Array.isArray(compData)) {
+          compData.forEach((c: any) => {
+            if (c?.IdComponente && c?.NombreComponente) componentes.push({ id: c.IdComponente, nombre: String(c.NombreComponente) });
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      const catalogRows: (string | number)[][] = [["CATALOGOS DE REFERENCIA (USAR NOMBRE O ID)"]];
+      catalogRows.push(["Tipo", "ID", "Nombre"]);
+
+      const pushCatalog = (label: string, items: { id: number | string; nombre: string }[]) => {
+        if (!items.length) {
+          catalogRows.push([label, "", "Sin datos o sin permisos"]);
+          return;
+        }
+        items.forEach((it, idx) => catalogRows.push([idx === 0 ? label : "", it.id, it.nombre]));
+      };
+
+      pushCatalog("Marcas", marcas.map((m: any) => ({ id: m.id, nombre: String(m.nombre ?? "") })).filter((x: { id: number | string; nombre: string }) => x.nombre));
+      pushCatalog("Componentes", componentes);
+
+      const wsCatalogs = workbook.addWorksheet("Catalogos_Referencia", { views: [{ state: "frozen", ySplit: 2 }] });
+      wsCatalogs.columns = [{ key: "tipo", width: 24 }, { key: "id", width: 12 }, { key: "nombre", width: 48 }];
+
+      wsCatalogs.mergeCells("A1:C1");
+      wsCatalogs.getCell("A1").value = "CATALOGOS DE REFERENCIA (NOMBRES PARA CARGA)";
+      wsCatalogs.getCell("A1").font = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+      wsCatalogs.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
+      wsCatalogs.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0F172A" } };
+      wsCatalogs.getRow(1).height = 24;
+
+      wsCatalogs.addRow(["Tipo", "ID", "Nombre"]);
+      wsCatalogs.getRow(2).eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF334155" } };
+      });
+
+      catalogRows.slice(2).forEach((r) => wsCatalogs.addRow(r));
+
+      for (let r = 2; r <= wsCatalogs.rowCount; r += 1) {
+        const row = wsCatalogs.getRow(r);
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFD1D5DB" } },
+            left: { style: "thin", color: { argb: "FFD1D5DB" } },
+            bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+            right: { style: "thin", color: { argb: "FFD1D5DB" } },
+          };
+          if (r > 2 && r % 2 === 0) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+          }
+          cell.alignment = { vertical: "middle", horizontal: Number(cell.col) === 3 ? "left" : "center" };
+        });
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `Plantilla_Importacion_Componentes_PRO_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    } finally {
+      setIsCreatingCatalog(false);
+    }
   };
 
   const handleClose = (nextOpen: boolean) => {
@@ -405,6 +808,16 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
         </DialogHeader>
 
         <div className="p-6 space-y-5 overflow-y-auto flex-1 min-h-0">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-sm font-semibold text-slate-800 mb-2">Indicaciones</p>
+            <div className="grid md:grid-cols-2 gap-2 text-sm text-slate-700">
+              <p>1. Usa la plantilla PRO para mantener formato y diseño.</p>
+              <p>2. En la columna <strong>Componente</strong> coloca el nombre exacto del componente (no el ID).</p>
+              <p>3. Marca, Modelo y Número de Serie ayudan a identificar y evitar duplicados.</p>
+              <p>4. Cantidad debe ser un número entero mayor que cero.</p>
+            </div>
+          </div>
+
           <div className="rounded-xl border border-slate-200 p-4 bg-white shadow-sm">
             <div className="grid lg:grid-cols-[1fr_auto_auto] gap-3 items-center">
               <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleSelectFile} className="border-slate-300" />
@@ -495,37 +908,82 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                   <thead className="bg-slate-100 text-slate-700 sticky top-0">
                     <tr>
                       <th className="text-left px-2 py-1.5">Fila</th>
-                      <th className="text-left px-2 py-1.5">Nombre</th>
+                      <th className="text-left px-2 py-1.5">Cód. Patrimonial</th>
+                      <th className="text-left px-2 py-1.5">Componente</th>
                       <th className="text-left px-2 py-1.5">Marca</th>
                       <th className="text-left px-2 py-1.5">Serie</th>
                       <th className="text-left px-2 py-1.5">Cantidad</th>
+                      <th className="text-left px-2 py-1.5">Ubicación</th>
+                      <th className="text-left px-2 py-1.5">Estado</th>
                       <th className="text-left px-2 py-1.5">Resultado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {errorResultRows.map((r) => {
                       const source = sourceRowByFila.get(r.Fila);
+                      const codigoValue = source?.CodigoPatrimonial || r.CodigoPatrimonial || "";
                       const nombreValue = source?.NombreComponente || r.NombreComponente || "";
                       const marcaValue = source?.Marca || (source?.IdMarca ? String(source.IdMarca) : r.Marca || "");
                       const serieValue = source?.NumeroSerie || r.NumeroSerie || "";
                       const cantidadValue = source?.Cantidad ?? r.Cantidad ?? null;
+                      const ubicacionValue = source?.UbicacionFisica || r.UbicacionFisica || "";
+                      const estadoValue = source?.EstadoEquipo || r.EstadoEquipo || "";
+                      const hasCurrentNombreOption = Boolean(importCatalogs?.componentes?.some((opt) => opt.nombre === nombreValue));
 
                       return (
-                        <tr key={`${r.Fila}-${r.NombreComponente}`} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
+                        <tr key={r.Fila} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
                           <td className="px-2 py-1">{r.Fila}</td>
+                          <td className={`px-2 py-1 ${r.flags.codigoPatrimonial ? "text-red-600 font-semibold" : ""}`}>
+                            {isFixMode ? (
+                              <Input
+                                value={codigoValue}
+                                onChange={(e) => updateRowField(r.Fila, "CodigoPatrimonial", e.target.value)}
+                                className={r.flags.codigoPatrimonial ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}
+                              />
+                            ) : (
+                              codigoValue || "-"
+                            )}
+                          </td>
                           <td className={`px-2 py-1 ${r.flags.nombreComponente ? "text-red-600 font-semibold" : ""}`}>
                             {isFixMode ? (
-                              <Input value={nombreValue} onChange={(e) => updateRowField(r.Fila, "NombreComponente", e.target.value)} className="h-7 border-red-300 text-red-700" />
-                            ) : (
-                              nombreValue || "-"
-                            )}
+                                <div className="flex items-center gap-1">
+                                  <div className="min-w-[160px] flex-1">
+                                    <Select value={nombreValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "NombreComponente", val === "__empty__" ? "" : (val ?? ""))}>
+                                      <SelectTrigger className={r.flags.nombreComponente ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
+                                        <SelectValue placeholder="Seleccionar" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__empty__">Seleccionar</SelectItem>
+                                        {(importCatalogs?.componentes || []).map((opt) => (
+                                          <SelectItem key={`comp-${opt.id}`} value={opt.nombre}>{opt.nombre}</SelectItem>
+                                        ))}
+                                        {!hasCurrentNombreOption && nombreValue ? (
+                                          <SelectItem key="current-nombre" value={nombreValue}>{nombreValue}</SelectItem>
+                                        ) : null}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className={r.flags.nombreComponente ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700 hover:bg-slate-50"}
+                                    disabled={isCreatingCatalog}
+                                    onClick={() => void createComponenteOption(r.Fila)}
+                                    title="Agregar componente"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                nombreValue || "-"
+                              )}
                           </td>
                           <td className={`px-2 py-1 ${r.flags.marca ? "text-red-600 font-semibold" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
-                                  <Select value={marcaValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "Marca", val === "__empty__" ? "" : val)}>
-                                    <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                  <Select value={marcaValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "Marca", val === "__empty__" ? "" : (val ?? ""))}>
+                                    <SelectTrigger className={r.flags.marca ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -539,7 +997,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                  className={r.flags.marca ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700 hover:bg-slate-50"}
                                   disabled={isCreatingCatalog}
                                   onClick={() => void createMarcaOption(r.Fila)}
                                   title="Agregar marca"
@@ -553,21 +1011,130 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                           </td>
                           <td className={`px-2 py-1 ${r.flags.numeroSerie ? "text-red-600 font-semibold" : ""}`}>
                             {isFixMode ? (
-                              <Input value={serieValue} onChange={(e) => updateRowField(r.Fila, "NumeroSerie", e.target.value)} className="h-7 border-red-300 text-red-700" />
+                              <Input value={serieValue} onChange={(e) => updateRowField(r.Fila, "NumeroSerie", e.target.value)} className={r.flags.numeroSerie ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"} />
                             ) : (
                               serieValue || "-"
                             )}
                           </td>
                           <td className={`px-2 py-1 ${r.flags.cantidad ? "text-red-600 font-semibold" : ""}`}>
                             {isFixMode ? (
-                              <Input type="number" value={cantidadValue ?? ""} onChange={(e) => updateRowField(r.Fila, "Cantidad", e.target.value)} className="h-7 border-red-300 text-red-700" />
+                              <Input type="number" value={cantidadValue ?? ""} onChange={(e) => updateRowField(r.Fila, "Cantidad", e.target.value)} className={r.flags.cantidad ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"} />
                             ) : (
                               cantidadValue ?? "-"
+                            )}
+                          </td>
+                          <td className={`px-2 py-1 ${r.flags.ubicacionFisica ? "text-red-600 font-semibold" : ""}`}>
+                            {isFixMode ? (
+                              <div className="flex items-center gap-1">
+                                <div className="min-w-[160px] flex-1">
+                                  <Select value={ubicacionValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "UbicacionFisica", val === "__empty__" ? "" : (val ?? ""))}>
+                                    <SelectTrigger className={r.flags.ubicacionFisica ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
+                                      <SelectValue placeholder="Seleccionar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__empty__">Seleccionar</SelectItem>
+                                      {(importCatalogs?.areas || []).map((opt) => (
+                                        <SelectItem key={`area-${opt.id}`} value={opt.nombre}>{opt.nombre}</SelectItem>
+                                      ))}
+                                      {ubicacionValue && !importCatalogs?.areas?.some((a) => a.nombre === ubicacionValue) ? (
+                                        <SelectItem key="current-area" value={ubicacionValue}>{ubicacionValue}</SelectItem>
+                                      ) : null}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className={r.flags.ubicacionFisica ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700 hover:bg-slate-50"}
+                                  disabled={isCreatingCatalog}
+                                  onClick={() => void createAreaOption(r.Fila)}
+                                  title="Agregar área / ubicación"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              ubicacionValue || "-"
+                            )}
+                          </td>
+                          <td className={`px-2 py-1 ${r.flags.estadoEquipo ? "text-red-600 font-semibold" : ""}`}>
+                            {isFixMode ? (
+                              <div className="flex items-center gap-1">
+                                <div className="min-w-[140px] flex-1">
+                                  <Select value={estadoValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "EstadoEquipo", val === "__empty__" ? "" : (val ?? ""))}>
+                                    <SelectTrigger className={r.flags.estadoEquipo ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
+                                      <SelectValue placeholder="Seleccionar" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__empty__">Seleccionar</SelectItem>
+                                      {(importCatalogs?.estados || []).map((opt) => (
+                                        <SelectItem key={`est-${opt.id}`} value={opt.nombre}>{opt.nombre}</SelectItem>
+                                      ))}
+                                      {estadoValue && !importCatalogs?.estados?.some((s) => s.nombre === estadoValue) ? (
+                                        <SelectItem key="current-estado" value={estadoValue}>{estadoValue}</SelectItem>
+                                      ) : null}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className={r.flags.estadoEquipo ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700 hover:bg-slate-50"}
+                                  disabled={isCreatingCatalog}
+                                  onClick={() => void createEstadoOption(r.Fila)}
+                                  title="Agregar estado"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              estadoValue || "-"
                             )}
                           </td>
                           <td className="px-2 py-1">
                             <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">ERROR</span>
                           </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {!!results.length && (
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
+                <p className="text-sm font-semibold text-slate-800">Resultado de importación</p>
+              </div>
+              <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
+                <table className="w-full text-sm leading-tight">
+                  <thead className="bg-slate-100 text-slate-700 sticky top-0">
+                    <tr>
+                      <th className="text-left px-2 py-1.5">Fila</th>
+                      <th className="text-left px-2 py-1.5">Cód. Patrimonial</th>
+                      <th className="text-left px-2 py-1.5">Componente</th>
+                      <th className="text-left px-2 py-1.5">Estado</th>
+                      <th className="text-left px-2 py-1.5">Mensaje</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.map((r: any, idx: number) => {
+                      const source = sourceRowByFila.get(r.Fila);
+                      const nombreDisplay = r.NombreComponente || source?.NombreComponente || "-";
+                      const codigoDisplay = r.CodigoPatrimonial || source?.CodigoPatrimonial || "-";
+                      return (
+                        <tr key={r.Fila} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
+                          <td className="px-2 py-1">{r.Fila}</td>
+                          <td className="px-2 py-1">{codigoDisplay}</td>
+                          <td className="px-2 py-1">{nombreDisplay}</td>
+                          <td className="px-2 py-1">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${r.Estado === "OK" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                              {r.Estado}
+                            </span>
+                          </td>
+                          <td className="px-2 py-1">{r.Mensaje || "-"}</td>
                         </tr>
                       );
                     })}

@@ -74,6 +74,7 @@ export const fichaListQuerySchema = z.object({
   idUsuarioSoporte: nullableInt.optional(),
   abiertos: optionalBooleanLike.optional(),
   cerrados: optionalBooleanLike.optional(),
+  reportes: optionalBooleanLike.optional(),
 });
 
 export const fichaBuscarQuerySchema = z.object({

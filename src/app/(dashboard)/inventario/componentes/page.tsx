@@ -32,7 +32,7 @@ const fetchComponentes = async () => {
 };
 
 const fetchComponenteCatalog = async () => {
-  const res = await fetch("/api/componentes?catalog=true");
+  const res = await fetch("/api/componentes-catalogo");
   if (!res.ok) throw new Error("Error al cargar tipos de componente");
   return res.json();
 };
@@ -159,26 +159,38 @@ export default function ComponentesPage() {
       {
         accessorKey: "BienDescripcion",
         header: "Bien",
-        cell: (info: any) => (
-          <div className="space-y-1">
-            <div>{info.getValue() || "-"}</div>
-            <div className="text-xs text-muted-foreground">{info.row.original.CodigoInventario || ""}</div>
-          </div>
-        ),
+        cell: (info: any) => {
+          const descripcion = info.getValue() || "";
+          const codigoInventario = info.row.original.CodigoInventario || info.row.original.Bien?.CodigoInventario || "";
+          const codigoPatrimonial = info.row.original.CodigoPatrimonial || info.row.original.Bien?.CodigoPatrimonio || "";
+          return (
+            <div className="space-y-1">
+              <div>{descripcion || codigoPatrimonial || codigoInventario || "-"}</div>
+              <div className="text-xs text-muted-foreground">{(descripcion ? codigoPatrimonial || codigoInventario : codigoInventario || codigoPatrimonial) || ""}</div>
+            </div>
+          );
+        },
       },
       {
         accessorKey: "NombreComponente",
         header: "Componente",
-        cell: (info: any) => (
-          <div className="space-y-1">
-            <div>{info.getValue() || `Componente ${info.row.original.IdComponente}`}</div>
-            {!info.row.original.Activo && (
-              <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive ring-1 ring-inset ring-destructive/20">
-                Inactivo
-              </span>
-            )}
-          </div>
-        ),
+        cell: (info: any) => {
+          const nombreComponenteFromRow = info.getValue();
+          const idComponente = String(info.row.original.IdComponente ?? "");
+          const catalogName = componenteCatalog?.find((item: any) => String(item.IdComponente) === idComponente)?.NombreComponente;
+          const nombreComponente =
+            nombreComponenteFromRow || catalogName || info.row.original.NombreComponente || info.row.original.Componente || `Componente ${idComponente}`;
+          return (
+            <div className="space-y-1">
+              <div>{nombreComponente}</div>
+              {!info.row.original.Activo && (
+                <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive ring-1 ring-inset ring-destructive/20">
+                  Inactivo
+                </span>
+              )}
+            </div>
+          );
+        },
       },
       {
         accessorKey: "Marca",
@@ -191,6 +203,11 @@ export default function ComponentesPage() {
         },
       },
       {
+        accessorKey: "UbicacionFisica",
+        header: "Área",
+        cell: (info: any) => info.getValue() || "-",
+      },
+      {
         accessorKey: "DescripcionModelo",
         header: "Modelo",
         cell: (info: any) => info.getValue() || "-",
@@ -198,11 +215,6 @@ export default function ComponentesPage() {
       {
         accessorKey: "Serie",
         header: "Serie",
-        cell: (info: any) => info.getValue() || "-",
-      },
-      {
-        accessorKey: "CodigoPatrimonial",
-        header: "Código Patrimonial",
         cell: (info: any) => info.getValue() || "-",
       },
       {

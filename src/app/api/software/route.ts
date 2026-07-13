@@ -149,6 +149,13 @@ async function resolveSoftwarePayloadIds(data: any) {
 }
 
 function formatSoftwareRow(row: any) {
+  const activoRaw = row.Activo;
+  const activo =
+    activoRaw === true ||
+    activoRaw === 1 ||
+    activoRaw === "1" ||
+    String(activoRaw).toLowerCase() === "true";
+
   return {
     IdSoftware: row.IdSoftware,
     NombreSoftware: row.NombreSoftware ?? row.Software ?? row.Nombre,
@@ -162,7 +169,7 @@ function formatSoftwareRow(row: any) {
     EquiposUsuariosAsignados: row.EquiposUsuariosAsignados ?? row.TipoAsignacion,
     UsoFinalidad: row.UsoFinalidad,
     FechaRegistro: row.FechaRegistro,
-    Activo: row.Activo,
+    Activo: activo,
   };
 }
 

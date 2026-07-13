@@ -7,6 +7,7 @@ import { exportFichasSoporteListExcel } from "@/lib/export/fichas-soporte-list-e
 import { QUERY_STALE_TIME } from "@/lib/query-config";
 import { queryKeys } from "@/lib/query-keys";
 import { fichaService } from "@/services/ficha.service";
+import type { FichaSoporteRecord } from "@/features/soporte/ficha/types";
 
 export const ESTADOS_TICKET = [
   "Pendiente",
@@ -16,8 +17,6 @@ export const ESTADOS_TICKET = [
   "Cerrado",
 ] as const;
 
-<<<<<<< HEAD
-=======
 const PAGE_SIZE = 25;
 
 function matchesSearch(ficha: FichaSoporteRecord, texto: string): boolean {
@@ -48,7 +47,6 @@ function matchesSearch(ficha: FichaSoporteRecord, texto: string): boolean {
   );
 }
 
->>>>>>> 730492ed4a0e4fe8e1003e665c1386ac4efaa3ce
 export function useFichaList() {
   const [buscarText, setBuscarTextState] = useState("");
   const [filterEstadoTicket, setFilterEstadoTicketState] = useState("");
@@ -81,15 +79,10 @@ export function useFichaList() {
   const numeroFichaBuscada = buscarText.trim();
 
   const { data: fichas, isLoading, error } = useQuery({
-<<<<<<< HEAD
     queryKey: queryKeys.fichasSoporte(numeroFichaBuscada),
     queryFn: () => fichaService.list({ numeroFicha: numeroFichaBuscada || undefined }),
-=======
-    queryKey: queryKeys.fichasSoporte(),
-    queryFn: fichaService.list,
     staleTime: QUERY_STALE_TIME.lists,
     gcTime: 15 * 60 * 1000,
->>>>>>> 730492ed4a0e4fe8e1003e665c1386ac4efaa3ce
   });
 
   const filteredFichas = useMemo(() => {

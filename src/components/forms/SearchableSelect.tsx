@@ -20,6 +20,7 @@ interface SearchableSelectProps {
   emptyMessage?: string;
   className?: string;
   disabled?: boolean;
+  allowCustom?: boolean;
 }
 
 function normalize(text: string) {
@@ -56,11 +57,13 @@ export function SearchableSelect({
   emptyMessage = "Sin coincidencias",
   className,
   disabled = false,
+  allowCustom = false,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const wasFocusedRef = useRef(false);
 
   const fieldPlaceholder = searchPlaceholder ?? placeholder;
 
@@ -92,6 +95,12 @@ export function SearchableSelect({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, [open]);
 
+  useEffect(() => {
+    if (open && wasFocusedRef.current) {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [open, query]);
+
   return (
     <div ref={containerRef} className={cn("relative w-full", className)}>
       <div
@@ -110,17 +119,26 @@ export function SearchableSelect({
           aria-haspopup="listbox"
           aria-autocomplete="list"
           disabled={disabled}
-          value={open ? query : selectedLabel}
+          value={open ? query : (selectedLabel || value)}
           placeholder={fieldPlaceholder}
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
           onChange={(event) => {
-            setQuery(event.target.value);
+            const nextValue = event.target.value;
+            setQuery(nextValue);
             setOpen(true);
+            requestAnimationFrame(() => inputRef.current?.focus());
           }}
           onFocus={() => {
             if (disabled) return;
             setOpen(true);
-            setQuery("");
+            setQuery(value);
+            wasFocusedRef.current = true;
+          }}
+          onBlur={() => {
+            wasFocusedRef.current = false;
+            if (allowCustom && query !== value) {
+              onValueChange(query);
+            }
           }}
           onKeyDown={(event) => {
             if (event.key === "Escape") {

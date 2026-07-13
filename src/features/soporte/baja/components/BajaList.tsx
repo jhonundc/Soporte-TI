@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
 import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
@@ -20,6 +20,7 @@ import {
   getEstadoBadgeClass,
   type BajaRecord,
 } from "@/features/soporte/baja/types";
+import { sessionService } from "@/services/session.service";
 
 interface BajaListProps {
   bajas: BajaRecord[];
@@ -66,6 +67,24 @@ export function BajaList({
   onDelete,
   onPrint,
 }: BajaListProps) {
+  const [currentUser, setCurrentUser] = useState<{ id?: number; role?: string } | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const s = await sessionService.get();
+        if (!mounted) return;
+        if (s.authenticated && s.user) setCurrentUser({ id: s.user.id, role: s.user.role });
+        else setCurrentUser(null);
+      } catch {
+        if (mounted) setCurrentUser(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const areaOptions = useMemo(() => {
     const fromCatalog = (areas ?? [])
       .filter((area) => area.NombreArea)
@@ -155,27 +174,34 @@ export function BajaList({
         header: "Acciones",
         cell: ({ row }) => {
           const baja = row.original;
+          const role = (currentUser?.role || "").toLowerCase();
+          const isSoporte = role.includes("soporte");
+          const canModify = !isSoporte || (baja.IdUsuarioRegistro && baja.IdUsuarioRegistro === currentUser?.id);
           return (
             <TableRowActions>
               <TableActionButton title="Ver" aria-label="Ver ficha de baja" onClick={() => onView(baja)}>
                 <Eye className="size-4" />
               </TableActionButton>
-              <TableActionButton
-                actionVariant="primary"
-                title="Editar"
-                aria-label="Editar ficha de baja"
-                onClick={() => onEdit(baja)}
-              >
-                <Edit className="size-4" />
-              </TableActionButton>
-              <TableActionButton
-                actionVariant="destructive"
-                title="Eliminar"
-                aria-label="Eliminar ficha de baja"
-                onClick={() => onDelete(baja.IdBaja)}
-              >
-                <Trash2 className="size-4" />
-              </TableActionButton>
+              {canModify && (
+                <TableActionButton
+                  actionVariant="primary"
+                  title="Editar"
+                  aria-label="Editar ficha de baja"
+                  onClick={() => onEdit(baja)}
+                >
+                  <Edit className="size-4" />
+                </TableActionButton>
+              )}
+              {canModify && (
+                <TableActionButton
+                  actionVariant="destructive"
+                  title="Eliminar"
+                  aria-label="Eliminar ficha de baja"
+                  onClick={() => onDelete(baja.IdBaja)}
+                >
+                  <Trash2 className="size-4" />
+                </TableActionButton>
+              )}
               <TableActionButton title="Imprimir" aria-label="Imprimir" onClick={() => onPrint(baja)}>
                 <Printer className="size-4" />
               </TableActionButton>

@@ -21,6 +21,7 @@ export const queryKeys = {
   fichasSoporte: (numeroFicha = "") => ["fichasSoporte", numeroFicha] as const,
 
   fichasBaja: (numeroFicha = "") => ["fichasBaja", numeroFicha] as const,
+  notificaciones: (tipo = "") => ["notificaciones", tipo] as const,
 
   catalogs: {
     marcas: ["marcas"] as const,

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Sparkles, Eye, Edit, Trash2, Search, Ticket, Clock, Wrench, CheckCircle, TrendingUp, Printer, FileSpreadsheet } from "lucide-react";
+import { useSession } from "@/lib/hooks/useSession";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/data-display/StatCard";
 import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
@@ -25,6 +26,9 @@ import { openBajaPrintWindow } from "@/lib/print/baja-print-template";
 
 export default function ReportesFichasPage() {
   const router = useRouter();
+  const { data: sessionData } = useSession();
+  const role = String(sessionData?.user?.role || "").toLowerCase();
+  const isSupport = role.includes("soporte") || role.includes("support");
 
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -109,8 +113,8 @@ export default function ReportesFichasPage() {
     setLoading(true);
     try {
       const [supportRes, bajaRes] = await Promise.all([
-        fetch("/api/soporte/ficha"),
-        fetch("/api/soporte/baja"),
+        fetch("/api/soporte/ficha?reportes=1"),
+        fetch("/api/soporte/baja?reportes=1"),
       ]);
 
       if (!supportRes.ok) throw new Error("Error cargando fichas de soporte");
@@ -434,7 +438,7 @@ export default function ReportesFichasPage() {
                       <td className="whitespace-nowrap px-4 py-3.5 text-muted-foreground">{r.fechaRegistro ? new Date(r.fechaRegistro).toLocaleString() : "-"}</td>
                       <td className="whitespace-nowrap px-4 py-3.5"><StatusBadge status={r.estado} /></td>
                       <td className="whitespace-nowrap px-4 py-3.5">
-                        <TableRowActions>
+                          <TableRowActions>
                           <TableActionButton
                             title="Imprimir PDF"
                             aria-label="Imprimir ficha en PDF"
@@ -456,22 +460,26 @@ export default function ReportesFichasPage() {
                           >
                             <Eye className="size-4" />
                           </TableActionButton>
-                          <TableActionButton
-                            actionVariant="primary"
-                            title="Editar"
-                            aria-label="Editar ficha"
-                            onClick={() => router.push(`/soporte/${r.tipo === "Baja" ? "baja" : "ficha"}?id=${r.id}`)}
-                          >
-                            <Edit className="size-4" />
-                          </TableActionButton>
-                          <TableActionButton
-                            actionVariant="destructive"
-                            title="Eliminar"
-                            aria-label="Eliminar ficha"
-                            onClick={() => handleDelete(r)}
-                          >
-                            <Trash2 className="size-4" />
-                          </TableActionButton>
+                          {!isSupport && (
+                            <>
+                              <TableActionButton
+                                actionVariant="primary"
+                                title="Editar"
+                                aria-label="Editar ficha"
+                                onClick={() => router.push(`/soporte/${r.tipo === "Baja" ? "baja" : "ficha"}?id=${r.id}`)}
+                              >
+                                <Edit className="size-4" />
+                              </TableActionButton>
+                              <TableActionButton
+                                actionVariant="destructive"
+                                title="Eliminar"
+                                aria-label="Eliminar ficha"
+                                onClick={() => handleDelete(r)}
+                              >
+                                <Trash2 className="size-4" />
+                              </TableActionButton>
+                            </>
+                          )}
                         </TableRowActions>
                       </td>
                     </tr>

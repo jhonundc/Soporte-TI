@@ -6,6 +6,10 @@ import { adminSession, authSession, guardFailed } from "@/lib/auth/guards";
 // Se puede filtrar por area, IdBien, o traer todas
 export async function GET(request: Request) {
   try {
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
+
     const { searchParams } = new URL(request.url);
     const idArea = searchParams.get("idArea");
     const idBien = searchParams.get("idBien");
@@ -20,6 +24,14 @@ export async function GET(request: Request) {
     if (idBien) {
       conditions.push("s.IdBien = @IdBien");
       params.IdBien = parseInt(idBien);
+    }
+
+    // If soporte user, and not admin, restrict export to their own fichas
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    if (isSoporte) {
+      conditions.push("s.IdUsuarioSoporte = @IdUsuarioSoporte");
+      params.IdUsuarioSoporte = session.id;
     }
 
     const whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";

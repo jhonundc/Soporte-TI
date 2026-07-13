@@ -109,6 +109,10 @@ function mapFichaRow(row: any) {
 // Buscar fichas por CodigoInventario, CodigoPatrimonial o NumeroSerie del bien asociado
 export async function GET(request: Request) {
   try {
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
+
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q")?.trim() ?? "";
 
@@ -151,7 +155,14 @@ export async function GET(request: Request) {
       ORDER BY s.FechaRegistro DESC
     `;
 
-    const result = await executeQuery(queryText, { Query: `%${query}%` });
+    // If soporte user, limit search to their own fichas
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    const params: any = { Query: `%${query}%` };
+    const whereAppend = isSoporte ? " AND s.IdUsuarioSoporte = @IdUsuarioSoporte" : "";
+    if (isSoporte) params.IdUsuarioSoporte = session.id;
+
+    const result = await executeQuery(queryText.replace("ORDER BY s.FechaRegistro DESC", `${whereAppend}\n      ORDER BY s.FechaRegistro DESC`), params);
     const fichas = result.recordset.map(mapFichaRow);
 
     return NextResponse.json(fichas);

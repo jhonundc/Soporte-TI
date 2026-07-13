@@ -1,15 +1,8 @@
 "use client";
 
-<<<<<<< HEAD
-import { PanelLeftClose, PanelLeftOpen, Boxes } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useUIStore } from "@/store/ui";
-import { Button } from "@/components/ui/button";
-=======
 import { Boxes } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/ui";
->>>>>>> 730492ed4a0e4fe8e1003e665c1386ac4efaa3ce
 import { SidebarNav } from "@/components/layout/SidebarNav";
 import { BrandMark } from "@/components/layout/BrandMark";
 

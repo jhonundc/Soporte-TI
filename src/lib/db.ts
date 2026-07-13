@@ -67,85 +67,45 @@ export async function getPool(): Promise<sql.ConnectionPool> {
 
 function addParams(request: sql.Request, params: Record<string, unknown>) {
   for (const [key, value] of Object.entries(params)) {
-    const lowerKey = key.toLowerCase();
-    try {
-      // null / undefined
-      if (value === null || value === undefined) {
+    if (value === null || value === undefined) {
+      request.input(key, null);
+      continue;
+    }
+
+    if (typeof value === "number" || typeof value === "boolean" || value instanceof Date) {
+      request.input(key, value);
+      continue;
+    }
+
+    if (Buffer.isBuffer(value)) {
+      request.input(key, value);
+      continue;
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed === "") {
         request.input(key, null);
         continue;
       }
 
-      // Numbers
-      if (typeof value === "number") {
-        if (!Number.isFinite(value)) {
-          request.input(key, null);
-        } else {
-          request.input(key, value);
-        }
-        continue;
-      }
-
-      // Strings -> coerce common conventions
-      if (typeof value === "string") {
-        if (lowerKey.includes("fecha") && !Number.isNaN(Date.parse(value))) {
-          request.input(key, new Date(value));
-        } else if (lowerKey.includes("id") && /^\d+$/.test(value)) {
-          request.input(key, parseInt(value, 10));
-        } else if (lowerKey.includes("activo") && /^(true|false)$/i.test(value)) {
-          request.input(key, value.toLowerCase() === "true");
-        } else {
-          request.input(key, value);
-        }
-        continue;
-      }
-
-      // Date objects
-      if (value instanceof Date) {
-        request.input(key, value);
-        continue;
-      }
-
-      // Booleans
-      if (typeof value === "boolean") {
-        request.input(key, value);
-        continue;
-      }
-
-      // Buffer -> send base64 string
-      if (typeof Buffer !== "undefined" && Buffer.isBuffer(value)) {
-        request.input(key, value.toString("base64"));
-        continue;
-      }
-
-      // Objects (including accidental sql type objects) -> defensive handling
-      if (typeof value === "object") {
-        // Detect if caller accidentally passed a mssql type descriptor as the param value
-        // A type descriptor created by sql.VarChar(50) will look like { type: [sql.VarChar], length: 50 }
-        if ("type" in value && ("length" in value || "precision" in value || "scale" in value)) {
-          // Caller likely passed a raw type descriptor by mistake.
-          console.warn(`Param ${key} appears to be a mssql type descriptor; coercing to safe types.`);
-          request.input(key, null);
+      const lowerKey = key.toLowerCase();
+      if (["idbiencomponente", "idcomponente", "idusuario", "cantidad"].some((idKey) => lowerKey === idKey || lowerKey.includes(idKey))) {
+        const parsed = parseInt(trimmed, 10);
+        if (!Number.isNaN(parsed)) {
+          request.input(key, parsed);
           continue;
         }
-
-        // For plain objects, stringify as JSON
-        try {
-          request.input(key, JSON.stringify(value));
-        } catch (e) {
-          request.input(key, String(value));
-        }
-        continue;
       }
 
-      // Fallback: coerce to string
+      request.input(key, trimmed);
+      continue;
+    }
+
+    try {
       request.input(key, String(value));
     } catch (err) {
-      // As a last resort try the original request.input signature and log the error
-      try {
-        request.input(key, value as any);
-      } catch (e) {
-        console.warn(`No se pudo asignar parámetro ${key}`, e);
-      }
+      request.input(key, null);
     }
   }
 }
@@ -170,6 +130,16 @@ export async function executeQuery<T = any>(
     }
     throw err;
   }
+}
+
+export async function executeTransactionQuery<T = any>(
+  transaction: sql.Transaction,
+  sqlQuery: string,
+  params: Record<string, any> = {}
+): Promise<sql.IResult<T>> {
+  const request = transaction.request();
+  addParams(request, params);
+  return request.query<T>(sqlQuery);
 }
 
 export { sql };

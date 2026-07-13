@@ -31,15 +31,14 @@ export async function POST(request: Request) {
     }
 
     const result = await executeQuery(
-      `INSERT INTO Marcas (Marca, Activo) 
-       OUTPUT INSERTED.* 
-       VALUES (@Marca, 1)`,
+      `EXEC sp_MantenimientoMarca @Accion = @Accion, @Marca = @Marca`,
       {
+        Accion: "R",
         Marca: data.Marca,
       }
     );
-    
-    return NextResponse.json(result.recordset[0], { status: 201 });
+
+    return NextResponse.json(result.recordset[0] || { Mensaje: "Marca registrada" }, { status: 201 });
   } catch (error) {
     console.error("Error en POST /api/marcas:", error);
     return NextResponse.json(
@@ -54,32 +53,40 @@ export async function PATCH(request: Request) {
   try {
     const data = await request.json();
     
-    if (!data.IdMarca || !data.Marca) {
+    const id = data.IdMarca ? parseInt(data.IdMarca) : null;
+    if (!id) {
       return NextResponse.json(
-        { error: "El ID y el nombre de la marca son requeridos" },
+        { error: "IdMarca es requerido" },
         { status: 400 }
       );
     }
 
-    const result = await executeQuery(
-      `UPDATE Marcas 
-       SET Marca = @Marca 
-       OUTPUT INSERTED.* 
-       WHERE IdMarca = @IdMarca`,
-      {
-        IdMarca: parseInt(data.IdMarca),
-        Marca: data.Marca,
-      }
-    );
-    
-    if (result.recordset.length === 0) {
+    if (data.Activar === true || data.Activar === false) {
+      const accion = data.Activar ? "T" : "E";
+      const result = await executeQuery(
+        `EXEC sp_MantenimientoMarca @Accion = @Accion, @IdMarca = @IdMarca`,
+        { Accion: accion, IdMarca: id }
+      );
+      return NextResponse.json(result.recordset[0] || { Mensaje: accion === "T" ? "Marca activada" : "Marca desactivada" });
+    }
+
+    if (!data.Marca) {
       return NextResponse.json(
-        { error: "Marca no encontrada" },
-        { status: 404 }
+        { error: "El nombre de la marca es requerido para actualizar" },
+        { status: 400 }
       );
     }
 
-    return NextResponse.json(result.recordset[0]);
+    const updateResult = await executeQuery(
+      `EXEC sp_MantenimientoMarca @Accion = @Accion, @IdMarca = @IdMarca, @Marca = @Marca`,
+      {
+        Accion: "A",
+        IdMarca: id,
+        Marca: data.Marca,
+      }
+    );
+
+    return NextResponse.json(updateResult.recordset[0] || { Mensaje: "Marca actualizada correctamente." });
   } catch (error) {
     console.error("Error en PATCH /api/marcas:", error);
     return NextResponse.json(
@@ -101,25 +108,31 @@ export async function DELETE(request: Request) {
         { status: 400 }
       );
     }
+    const permanent = searchParams.get("permanent") === "1" || searchParams.get("permanent") === "true";
+    const accion = permanent ? "D" : "E";
 
-    const result = await executeQuery(
-      `UPDATE Marcas 
-       SET Activo = 0 
-       OUTPUT INSERTED.* 
-       WHERE IdMarca = @IdMarca`,
-      {
-        IdMarca: parseInt(id),
-      }
-    );
-    
-    if (result.recordset.length === 0) {
-      return NextResponse.json(
-        { error: "Marca no encontrada" },
-        { status: 404 }
+    try {
+      const result = await executeQuery(
+        `EXEC sp_MantenimientoMarca @Accion = @Accion, @IdMarca = @IdMarca`,
+        {
+          Accion: accion,
+          IdMarca: parseInt(id),
+        }
       );
-    }
 
-    return NextResponse.json(result.recordset[0]);
+      if (result.recordset.length === 0) {
+        return NextResponse.json(
+          { error: "Marca no encontrada" },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(result.recordset[0]);
+    } catch (err: any) {
+      const msg = (err && err.message) || "Error al eliminar la marca";
+      console.error("Error al ejecutar sp_MantenimientoMarca (DELETE):", err);
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
   } catch (error) {
     console.error("Error en DELETE /api/marcas:", error);
     return NextResponse.json(

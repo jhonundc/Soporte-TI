@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { authSession, guardFailed } from "@/lib/auth/guards";
 import {
   bajaCreateApiSchema,
   bajaDeleteQuerySchema,
@@ -86,6 +87,10 @@ async function enrichBajas(baseRows: any[]) {
 // Obtener fichas de baja (lista o por número de ficha)
 export async function GET(request: Request) {
   try {
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
+
     const { searchParams } = new URL(request.url);
     const queryParsed = parseSearchParams(bajaListQuerySchema, searchParams);
     if ("error" in queryParsed) return queryParsed.error;
@@ -93,6 +98,7 @@ export async function GET(request: Request) {
     const numeroFicha = queryParsed.data.numeroFicha;
     const accion = numeroFicha ? "F" : "L";
 
+    const isReportesRequest = searchParams.get("reportes") === "1";
     const result = await executeQuery(
       `EXEC sp_ConsultaBajaBien
          @Accion = @Accion,
@@ -103,7 +109,13 @@ export async function GET(request: Request) {
       }
     );
 
-    const fichas = await enrichBajas(result.recordset || []);
+    let fichas = await enrichBajas(result.recordset || []);
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    if (isSoporte && !isReportesRequest) {
+      fichas = fichas.filter((ficha) => ficha.IdUsuarioRegistro === session.id);
+    }
+
     return NextResponse.json(fichas);
   } catch (error) {
     console.error("Error en GET /api/soporte/baja:", error);
@@ -117,9 +129,17 @@ export async function GET(request: Request) {
 // Crear una nueva ficha de baja
 export async function POST(request: Request) {
   try {
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
+
     const parsed = await parseJsonBody(bajaCreateApiSchema, request);
     if ("error" in parsed) return parsed.error;
     const data = parsed.data;
+
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    const idUsuarioRegistro = isSoporte ? session.id : data.IdUsuarioRegistro;
 
     await executeQuery(
       `EXEC sp_MantenimientoBajaBien
@@ -153,7 +173,7 @@ export async function POST(request: Request) {
         Recomendacion: data.Recomendacion,
         CausalBaja: data.CausalBaja,
         Observacion: data.Observacion,
-        IdUsuarioRegistro: data.IdUsuarioRegistro,
+        IdUsuarioRegistro: idUsuarioRegistro,
       }
     );
 
@@ -174,9 +194,26 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
+
     const parsed = await parseJsonBody(bajaUpdateApiSchema, request);
     if ("error" in parsed) return parsed.error;
     const data = parsed.data;
+
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    if (isSoporte) {
+      const ownerRes = await executeQuery(
+        "SELECT IdUsuarioRegistro FROM BajasBienes WHERE IdBaja = @IdBaja",
+        { IdBaja: data.IdBaja }
+      );
+      const ownerRow = (ownerRes.recordset || [])[0] || {};
+      if (ownerRow.IdUsuarioRegistro && ownerRow.IdUsuarioRegistro !== session.id) {
+        return NextResponse.json({ error: "No tiene permisos para actualizar esta ficha de baja" }, { status: 403 });
+      }
+    }
 
     await executeQuery(
       `EXEC sp_MantenimientoBajaBien
@@ -225,10 +262,27 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const auth = await authSession();
+    if (guardFailed(auth)) return auth;
+    const session = auth as any;
+
     const { searchParams } = new URL(request.url);
     const parsed = parseSearchParams(bajaDeleteQuerySchema, searchParams);
     if ("error" in parsed) return parsed.error;
     const id = parsed.data.id;
+
+    const role = (session.role || "").toLowerCase();
+    const isSoporte = role.includes("soporte");
+    if (isSoporte) {
+      const ownerRes = await executeQuery(
+        "SELECT IdUsuarioRegistro FROM BajasBienes WHERE IdBaja = @IdBaja",
+        { IdBaja: id }
+      );
+      const ownerRow = (ownerRes.recordset || [])[0] || {};
+      if (ownerRow.IdUsuarioRegistro && ownerRow.IdUsuarioRegistro !== session.id) {
+        return NextResponse.json({ error: "No tiene permisos para eliminar esta ficha de baja" }, { status: 403 });
+      }
+    }
 
     await executeQuery("DELETE FROM BajasBienes WHERE IdBaja = @IdBaja", { IdBaja: id });
 

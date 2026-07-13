@@ -25,10 +25,12 @@ type ImportResultado = {
 function normalizeKey(value: unknown): string {
   return String(value ?? "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/gi, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/s$/g, (m, idx, str) => (str.length > 3 ? "" : m));
 }
 
 function toNullableText(value: unknown): string | null {
@@ -74,6 +76,11 @@ function buildLookupMapFromOptions(rows: any[], idKeys: string[], labelKeys: str
 function resolveCatalogId(explicitId: unknown, labelValue: unknown, lookup: Map<string, number>): number | null {
   const id = toNullableInt(explicitId);
   if (id !== null) return id;
+  if (id !== null) {
+    for (const v of lookup.values()) {
+      if (v === id) return id;
+    }
+  }
   const key = normalizeKey(labelValue);
   if (!key) return null;
   return lookup.get(key) ?? null;
@@ -136,7 +143,7 @@ export async function POST(request: Request) {
       if ((cantidad ?? 0) <= 0) rowErrors.push("La cantidad debe ser mayor a cero.");
 
       const idMarca = resolveCatalogId(row.IdMarca, row.Marca, marcasMap);
-      if (!idMarca) rowErrors.push("Marca inexistente o inactiva.");
+      if (!idMarca && (row.Marca || row.IdMarca)) rowErrors.push("Marca inexistente o inactiva.");
 
       if (rowErrors.length) {
         apiValidationErrors.push({

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppWindow, Boxes, Cpu, Download, Edit, Eye, Search, Sparkles, Trash2 } from "lucide-react";
+import { useSession } from "@/lib/hooks/useSession";
 import { StatCard } from "@/components/data-display/StatCard";
 import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { TableActionButton, TableRowActions } from "@/components/data-display/TableRowActions";
@@ -39,32 +40,40 @@ function RecordRowActions({
   onView,
   onEdit,
   onDelete,
+  showEdit = true,
+  showDelete = true,
 }: {
   onView: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  showEdit?: boolean;
+  showDelete?: boolean;
 }) {
   return (
     <TableRowActions>
       <TableActionButton title="Ver" aria-label="Ver registro" onClick={onView}>
         <Eye className="size-4" />
       </TableActionButton>
-      <TableActionButton
-        actionVariant="primary"
-        title="Editar"
-        aria-label="Editar registro"
-        onClick={onEdit}
-      >
-        <Edit className="size-4" />
-      </TableActionButton>
-      <TableActionButton
-        actionVariant="destructive"
-        title="Eliminar"
-        aria-label="Eliminar registro"
-        onClick={onDelete}
-      >
-        <Trash2 className="size-4" />
-      </TableActionButton>
+      {showEdit ? (
+        <TableActionButton
+          actionVariant="primary"
+          title="Editar"
+          aria-label="Editar registro"
+          onClick={onEdit}
+        >
+          <Edit className="size-4" />
+        </TableActionButton>
+      ) : null}
+      {showDelete ? (
+        <TableActionButton
+          actionVariant="destructive"
+          title="Eliminar"
+          aria-label="Eliminar registro"
+          onClick={onDelete}
+        >
+          <Trash2 className="size-4" />
+        </TableActionButton>
+      ) : null}
     </TableRowActions>
   );
 }
@@ -75,13 +84,18 @@ export default function ReportesInventarioPage() {
   const [stats, setStats] = useState<InventarioStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
 
+  const { data: sessionData } = useSession();
+  const role = String(sessionData?.user?.role || "").toLowerCase();
+  const isSupport = role.includes("soporte") || role.includes("support");
+
   const [filterType, setFilterType] = useState<FilterType>("bienes");
   const [records, setRecords] = useState<any[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [selectedArea, setSelectedArea] = useState("");
+  const [areaSearch, setAreaSearch] = useState("");
+  const [selectedAreaId, setSelectedAreaId] = useState("");
   const [areas, setAreas] = useState<any[]>([]);
   const [activeFilter, setActiveFilter] = useState<"todos" | "activos" | "inactivos">("todos");
   const [modalOpen, setModalOpen] = useState(false);
@@ -113,10 +127,10 @@ export default function ReportesInventarioPage() {
 
   useEffect(() => {
     loadRecords();
-  }, [filterType, startDate, endDate, selectedArea]);
+  }, [filterType, startDate, endDate, selectedAreaId, activeFilter]);
 
   useEffect(() => {
-    if (filterType !== "bienes") return;
+    if (filterType !== "bienes" && filterType !== "componentes") return;
 
     const loadAreas = async () => {
       try {
@@ -133,13 +147,25 @@ export default function ReportesInventarioPage() {
     loadAreas();
   }, [filterType]);
 
+  useEffect(() => {
+    if (!areaSearch) {
+      setSelectedAreaId("");
+      return;
+    }
+
+    const exactMatch = areas.find(
+      (area) =>
+        area.NombreArea &&
+        normalizeText(area.NombreArea) === normalizeText(areaSearch)
+    );
+    setSelectedAreaId(exactMatch ? String(exactMatch.IdArea) : "");
+  }, [areaSearch, areas]);
+
   async function loadRecords() {
     setLoadingRecords(true);
     try {
       if (filterType === "bienes") {
-        const areaQuery = selectedArea
-          ? `&idArea=${encodeURIComponent(selectedArea)}`
-          : "";
+        const areaQuery = selectedAreaId ? `&idArea=${encodeURIComponent(selectedAreaId)}` : "";
 
         if (startDate && endDate) {
           const params = new URLSearchParams({
@@ -147,9 +173,7 @@ export default function ReportesInventarioPage() {
             fechaInicio: startDate,
             fechaFin: endDate,
           });
-          if (selectedArea) {
-            params.set("idArea", selectedArea);
-          }
+          if (selectedAreaId) params.set("idArea", selectedAreaId);
           const res = await fetch(`/api/reportes/bienes?${params.toString()}`);
           if (!res.ok) {
             const error = await res.json().catch(() => null);
@@ -189,18 +213,65 @@ export default function ReportesInventarioPage() {
           return rightTime - leftTime;
         });
 
-        const areaFiltered = selectedArea
-          ? merged.filter((item) => {
-              const itemAreaId = String(item?.IdArea ?? item?.Area?.IdArea ?? "");
-              return itemAreaId === selectedArea;
-            })
-          : merged;
-
-        setRecords(areaFiltered);
+        setRecords(merged);
         return;
       }
 
-      const url = filterType === "componentes" ? "/api/componentes" : "/api/software";
+      if (filterType === "software") {
+        const url =
+          activeFilter === "activos"
+            ? "/api/software"
+            : activeFilter === "inactivos"
+            ? "/api/software?inactivos=1"
+            : "/api/software?all=1";
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Error al cargar software");
+        const data = await res.json();
+        setRecords(Array.isArray(data) ? data : []);
+        return;
+      }
+
+      if (filterType === "componentes") {
+        const url = selectedAreaId
+          ? `/api/componentes?accion=A&idArea=${encodeURIComponent(selectedAreaId)}`
+          : activeFilter === "activos"
+          ? "/api/componentes?accion=L"
+          : activeFilter === "inactivos"
+          ? "/api/componentes?accion=D"
+          : "/api/componentes?accion=T";
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Error al cargar componentes");
+        const data = await res.json();
+        let records = Array.isArray(data) ? data : [];
+
+if (selectedAreaId) {
+      records = records.filter((record) => {
+        const areaId = String(
+          record?.IdArea ?? record?.Area?.IdArea ?? record?.Bien?.IdArea ?? record?.Bien?.Area?.IdArea ?? ""
+        );
+        return areaId === selectedAreaId;
+          });
+        }
+
+        if (activeFilter !== "todos") {
+          const isActive = activeFilter === "activos";
+          records = records.filter((record) => {
+            const rawActivo = record.Activo;
+            const isRecordActive =
+              rawActivo === true ||
+              rawActivo === 1 ||
+              rawActivo === "1" ||
+              String(rawActivo).toLowerCase() === "true";
+            return isActive ? isRecordActive : !isRecordActive;
+          });
+        }
+
+        setRecords(records);
+        return;
+      }
+
+      const url = "/api/bienes";
 
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Error al cargar ${filterType}`);
@@ -260,32 +331,41 @@ export default function ReportesInventarioPage() {
     if (searchTerm.trim()) count += 1;
     if (startDate) count += 1;
     if (endDate) count += 1;
-    if (selectedArea) count += 1;
+    if (areaSearch.trim()) count += 1;
     if (activeFilter !== "todos") count += 1;
     return count;
-  }, [searchTerm, startDate, endDate, selectedArea, activeFilter]);
+  }, [searchTerm, startDate, endDate, areaSearch, activeFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
     setStartDate("");
     setEndDate("");
-    setSelectedArea("");
+    setAreaSearch("");
+    setSelectedAreaId("");
     setActiveFilter("todos");
   };
+
+  const normalizeText = (value: string | null | undefined) =>
+    String(value || "")
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
 
   const filteredRecords = useMemo(() => {
     let result = records;
 
     if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
+      const term = normalizeText(searchTerm);
       result = result.filter((record) => {
         if (filterType === "bienes") {
           return (
-            (record.Descripcion?.toLowerCase() || "").includes(term) ||
-            (record.CodigoInventario?.toLowerCase() || "").includes(term) ||
-            (record.CodigoPatrimonial?.toLowerCase() || "").includes(term) ||
-            (record.NumeroSerie?.toLowerCase() || "").includes(term) ||
-            (record.Area?.NombreArea?.toLowerCase() || record.NombreArea?.toLowerCase() || "").includes(term)
+            normalizeText(record.Descripcion).includes(term) ||
+            normalizeText(record.CodigoInventario).includes(term) ||
+            normalizeText(record.CodigoPatrimonial).includes(term) ||
+            normalizeText(record.NumeroSerie).includes(term) ||
+            normalizeText(record.Area?.NombreArea || record.NombreArea).includes(term)
           );
         }
         if (filterType === "componentes") {
@@ -306,17 +386,15 @@ export default function ReportesInventarioPage() {
       });
     }
 
-    if (filterType === "bienes" && selectedArea) {
-      result = result.filter((record) => {
-        const areaId = String(record?.IdArea ?? record?.Area?.IdArea ?? "");
-        return areaId === selectedArea;
-      });
-    }
-
     if (activeFilter !== "todos") {
       const isActive = activeFilter === "activos";
       result = result.filter((record) => {
-        const isRecordActive = record.Activo === 1 || record.Activo === true;
+        const rawActivo = record.Activo;
+        const isRecordActive =
+          rawActivo === true ||
+          rawActivo === 1 ||
+          rawActivo === "1" ||
+          String(rawActivo).toLowerCase() === "true";
         return isActive ? isRecordActive : !isRecordActive;
       });
     }
@@ -419,6 +497,8 @@ export default function ReportesInventarioPage() {
                             notify.fromError(e, "Error al eliminar");
                           }
                         }}
+                        showEdit={!isSupport}
+                        showDelete={!isSupport}
                       />
                     </div>
                   </td>
@@ -437,6 +517,7 @@ export default function ReportesInventarioPage() {
             <thead className={TABLE_HEAD_CLASS}>
               <tr>
                 <th className="px-4 py-3.5 text-left">Bien</th>
+                <th className="px-4 py-3.5 text-left">Área</th>
                 <th className="px-4 py-3.5 text-left">Componente</th>
                 <th className="px-4 py-3.5 text-left">Marca</th>
                 <th className="px-4 py-3.5 text-left">Serie</th>
@@ -447,9 +528,25 @@ export default function ReportesInventarioPage() {
             <tbody className="divide-y divide-border bg-card">
               {filteredRecords.map((comp, idx) => (
                 <tr key={idx} className={TABLE_ROW_CLASS}>
-                  <td className={TABLE_CELL_CLASS}>{comp.BienDescripcion || "-"}</td>
+                  <td className={TABLE_CELL_CLASS}>
+                    <div className="space-y-1">
+                      <div>
+                        {comp.BienDescripcion || comp.Bien?.Descripcion || comp.CodigoPatrimonial || comp.CodigoInventario || "-"}
+                      </div>
+                      {comp.CodigoPatrimonial && (comp.BienDescripcion || comp.Bien?.Descripcion) ? (
+                        <div className="text-xs text-muted-foreground">{comp.CodigoPatrimonial}</div>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className={TABLE_CELL_CLASS}>
+                    {comp.UbicacionFisica || comp.Area?.NombreArea || comp.Bien?.Area?.NombreArea || comp.NombreArea || "-"}
+                  </td>
                   <td className={TABLE_CELL_CLASS}>{comp.NombreComponente || "-"}</td>
-                  <td className={TABLE_CELL_CLASS}>{comp.Marca || "-"}</td>
+                  <td className={TABLE_CELL_CLASS}>
+                    {typeof comp.Marca === "object"
+                      ? comp.Marca?.Marca || "-"
+                      : comp.Marca || "-"}
+                  </td>
                   <td className={TABLE_CELL_CLASS}>{comp.Serie || "-"}</td>
                   <td className={TABLE_CELL_MUTED}>
                     {comp.FechaRegistro
@@ -478,6 +575,8 @@ export default function ReportesInventarioPage() {
                             notify.fromError(e, "Error al eliminar");
                           }
                         }}
+                        showEdit={!isSupport}
+                        showDelete={!isSupport}
                       />
                     </div>
                   </td>
@@ -536,6 +635,8 @@ export default function ReportesInventarioPage() {
                           notify.fromError(e, "Error al eliminar");
                         }
                       }}
+                      showEdit={!isSupport}
+                      showDelete={!isSupport}
                     />
                   </div>
                 </td>
@@ -625,23 +726,25 @@ export default function ReportesInventarioPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </FilterField>
-            {filterType === "bienes" ? (
+            {(filterType === "bienes" || filterType === "componentes") && (
               <FilterField label="Área" htmlFor="inventario-area">
-                <select
-                  id="inventario-area"
-                  value={selectedArea}
-                  onChange={(e) => setSelectedArea(e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                >
-                  <option value="">Todas</option>
-                  {areas.map((area) => (
-                    <option key={area.IdArea} value={String(area.IdArea)}>
-                      {area.NombreArea}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <Input
+                    id="inventario-area"
+                    type="text"
+                    list="areas-list"
+                    value={areaSearch}
+                    onChange={(e) => setAreaSearch(e.target.value)}
+                    placeholder="Escribe un área..."
+                  />
+                  <datalist id="areas-list">
+                    {areas.map((area) => (
+                      <option key={area.IdArea} value={area.NombreArea} />
+                    ))}
+                  </datalist>
+                </div>
               </FilterField>
-            ) : null}
+            )}
             <FilterField label="Desde" htmlFor="inventario-start">
               <Input
                 id="inventario-start"

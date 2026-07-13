@@ -8,6 +8,7 @@ import {
   Boxes,
   Network,
   Ticket,
+  Bell,
   BarChart,
   Users,
   Settings,
@@ -49,7 +50,20 @@ const adminMenuItems: SidebarMenuItem[] = [
       { label: "Componentes por Área", href: "/soporte/componentes-por-area" },
     ],
   },
-  { icon: Users, label: "Usuarios", href: "/usuarios" },
+  {
+    icon: Bell,
+    label: "Centro de Notificaciones",
+    href: "/centro-notificaciones",
+    subItems: [
+      { label: "Fichas Soporte", href: "/centro-notificaciones/fichas-soporte" },
+      { label: "Fichas Baja", href: "/centro-notificaciones/fichas-baja" },
+    ],
+  },
+  {
+    icon: Users,
+    label: "Usuarios",
+    href: "/usuarios",
+  },
   {
     icon: Settings,
     label: "Configuración",
@@ -100,6 +114,15 @@ const supportMenuItems: SidebarMenuItem[] = [
       { label: "Generar Ficha Soporte", href: "/soporte/ficha" },
       { label: "Generar Ficha de Baja", href: "/soporte/baja" },
       { label: "Componentes por Área", href: "/soporte/componentes-por-area" },
+    ],
+  },
+  {
+    icon: Bell,
+    label: "Centro de Notificaciones",
+    href: "/centro-notificaciones",
+    subItems: [
+      { label: "Fichas Soporte", href: "/centro-notificaciones/fichas-soporte" },
+      { label: "Fichas Baja", href: "/centro-notificaciones/fichas-baja" },
     ],
   },
   {

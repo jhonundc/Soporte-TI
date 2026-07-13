@@ -57,11 +57,17 @@ export async function GET() {
       return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 
-    const marcasResult = await executeQuery("EXEC sp_ConsultaMarca @Accion = @Accion", { Accion: "L" });
+    const [marcasResult, areasResult, estadosResult] = await Promise.all([
+      executeQuery("EXEC sp_ConsultaMarca @Accion = @Accion", { Accion: "L" }),
+      executeQuery("EXEC sp_ConsultaArea @Accion = @Accion", { Accion: "L" }),
+      executeQuery("EXEC sp_ConsultaEstadoBien @Accion = @Accion", { Accion: "L" }),
+    ]);
 
     const marcas = buildUniqueOptions(marcasResult.recordset || [], ["IdMarca"], ["Marca"]);
+    const areas = buildUniqueOptions(areasResult.recordset || [], ["IdArea"], ["NombreArea", "Area"]);
+    const estados = buildUniqueOptions(estadosResult.recordset || [], ["IdEstadoBien"], ["Estado", "EstadoBien", "Nombre"]);
 
-    return NextResponse.json({ marcas });
+    return NextResponse.json({ marcas, areas, estados });
   } catch (error) {
     console.error("Error en GET /api/componentes/importar/catalogos:", error);
     return NextResponse.json({ error: "Error al obtener catálogos de importación" }, { status: 500 });

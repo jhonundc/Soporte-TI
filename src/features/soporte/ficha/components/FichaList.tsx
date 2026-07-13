@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type UIEvent } from "react";
+import { useMemo, useEffect, useState, type UIEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/data-display/DataTable";
 import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
@@ -17,6 +17,7 @@ import {
 import { Edit, Eye, Power, Printer, Search, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ESTADOS_TICKET } from "@/features/soporte/ficha/hooks/useFichaList";
+import { sessionService } from "@/services/session.service";
 import type { AreaRef, FichaSoporteRecord, PrioridadRef } from "@/features/soporte/ficha/types";
 
 interface FichaListProps {
@@ -82,6 +83,24 @@ export function FichaList({
   onTableScroll,
   tableFooter,
 }: FichaListProps) {
+  const [currentUser, setCurrentUser] = useState<{ id?: number; role?: string } | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const s = await sessionService.get();
+        if (!mounted) return;
+        if (s.authenticated && s.user) setCurrentUser({ id: s.user.id, role: s.user.role });
+        else setCurrentUser(null);
+      } catch {
+        if (mounted) setCurrentUser(null);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const areaOptions = useMemo(
     () =>
       (areas ?? [])
@@ -151,30 +170,38 @@ export function FichaList({
         header: "Acciones",
         cell: ({ row }) => {
           const ficha = row.original;
+          const role = (currentUser?.role || "").toLowerCase();
+          const isSoporte = role.includes("soporte");
+          const userId = currentUser?.id;
+          const canModify = !isSoporte || (ficha.IdUsuarioSoporte && ficha.IdUsuarioSoporte === userId);
           return (
             <TableRowActions>
               <TableActionButton title="Ver ficha" aria-label="Ver ficha" onClick={() => onView(ficha)}>
                 <Eye className="size-4" />
               </TableActionButton>
-              <TableActionButton
-                actionVariant="primary"
-                title="Editar"
-                aria-label="Editar ficha"
-                onClick={() => onEdit(ficha)}
-              >
-                <Edit className="size-4" />
-              </TableActionButton>
+              {canModify && (
+                <TableActionButton
+                  actionVariant="primary"
+                  title="Editar"
+                  aria-label="Editar ficha"
+                  onClick={() => onEdit(ficha)}
+                >
+                  <Edit className="size-4" />
+                </TableActionButton>
+              )}
               <TableActionButton actionVariant="warning" title="Desactivar" aria-label="Desactivar">
                 <Power className="size-4" />
               </TableActionButton>
-              <TableActionButton
-                actionVariant="destructive"
-                title="Cerrar ticket"
-                aria-label="Cerrar ticket"
-                onClick={() => onDelete(ficha.IdSoporte)}
-              >
-                <Trash2 className="size-4" />
-              </TableActionButton>
+              {canModify && (
+                <TableActionButton
+                  actionVariant="destructive"
+                  title="Cerrar ticket"
+                  aria-label="Cerrar ticket"
+                  onClick={() => onDelete(ficha.IdSoporte)}
+                >
+                  <Trash2 className="size-4" />
+                </TableActionButton>
+              )}
               <TableActionButton title="Imprimir" aria-label="Imprimir" onClick={() => onPrint(ficha)}>
                 <Printer className="size-4" />
               </TableActionButton>

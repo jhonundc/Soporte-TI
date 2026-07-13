@@ -831,7 +831,7 @@ export default function SoftwareImportModal({
                             {isFixMode && r.flags.software ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[150px] flex-1">
-                                  <Select value={softwareValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "NombreSoftware", val === "__empty__" ? "" : val)}>
+                                  <Select value={softwareValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "NombreSoftware", val === "__empty__" ? "" : (val ?? ""))}>
                                     <SelectTrigger className="h-7 border-red-300 text-red-700">
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
@@ -862,7 +862,7 @@ export default function SoftwareImportModal({
                             {isFixMode && r.flags.tipoSoftware ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
-                                  <Select value={tipoSoftwareValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "TipoSoftware", val === "__empty__" ? "" : val)}>
+                                  <Select value={tipoSoftwareValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "TipoSoftware", val === "__empty__" ? "" : (val ?? ""))}>
                                     <SelectTrigger className="h-7 border-red-300 text-red-700">
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
@@ -893,7 +893,7 @@ export default function SoftwareImportModal({
                             {isFixMode && r.flags.proveedor ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
-                                  <Select value={proveedorValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "ProveedorEntidad", val === "__empty__" ? "" : val)}>
+                                  <Select value={proveedorValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "ProveedorEntidad", val === "__empty__" ? "" : (val ?? ""))}>
                                     <SelectTrigger className="h-7 border-red-300 text-red-700">
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
@@ -924,7 +924,7 @@ export default function SoftwareImportModal({
                             {isFixMode && r.flags.tipoLicencia ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
-                                  <Select value={tipoLicenciaValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "TipoLicencia", val === "__empty__" ? "" : val)}>
+                                  <Select value={tipoLicenciaValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "TipoLicencia", val === "__empty__" ? "" : (val ?? ""))}>
                                     <SelectTrigger className="h-7 border-red-300 text-red-700">
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
@@ -955,7 +955,7 @@ export default function SoftwareImportModal({
                             {isFixMode && r.flags.estadoLicencia ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
-                                  <Select value={estadoLicenciaValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "EstadoLicencia", val === "__empty__" ? "" : val)}>
+                                  <Select value={estadoLicenciaValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "EstadoLicencia", val === "__empty__" ? "" : (val ?? ""))}>
                                     <SelectTrigger className="h-7 border-red-300 text-red-700">
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
@@ -986,7 +986,7 @@ export default function SoftwareImportModal({
                             {isFixMode && r.flags.tipoAsignacion ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
-                                  <Select value={tipoAsignacionValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "TipoAsignacion", val === "__empty__" ? "" : val)}>
+                                  <Select value={tipoAsignacionValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "TipoAsignacion", val === "__empty__" ? "" : (val ?? ""))}>
                                     <SelectTrigger className="h-7 border-red-300 text-red-700">
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
