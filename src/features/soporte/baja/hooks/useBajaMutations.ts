@@ -10,6 +10,7 @@ export function useBajaMutations(onSaveSuccess?: () => void) {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.fichasBaja() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.bienes.all() });
   };
 
   const saveMutation = useMutation({

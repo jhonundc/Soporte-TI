@@ -22,8 +22,8 @@ export function FichaViewDialog({ open, onOpenChange, ficha }: FichaViewDialogPr
     <>
       <DialogPrintStyles />
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl print:max-h-none print:border-none print:p-0 print:shadow-none">
-          <DialogHeader className="print:hidden">
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-5xl print:max-h-none print:border-none print:p-0 print:shadow-none">
+          <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5 print:hidden">
             <DialogTitle>Detalle de Ficha de Soporte</DialogTitle>
             <DialogDescription>
               Vista de impresión y detalles técnicos de la ficha registrada.
@@ -31,7 +31,7 @@ export function FichaViewDialog({ open, onOpenChange, ficha }: FichaViewDialogPr
           </DialogHeader>
 
           {ficha && (
-            <div className="space-y-6 p-4 border rounded-lg bg-white print:border-none print:p-0 text-slate-800">
+            <div className="space-y-6 border-primary/15 bg-primary/[0.035] p-6 text-slate-800 [&_h3]:!rounded-md [&_h3]:!bg-primary/10 [&_h3]:!text-primary print:border-none print:bg-white print:p-0 print:[&_h3]:!rounded-t print:[&_h3]:!bg-slate-800 print:[&_h3]:!text-white">
               {/* PRINTABLE CONTAINER */}
               <div id="printable-ficha" className="space-y-6">
                 {/* HEADER */}
@@ -51,7 +51,7 @@ export function FichaViewDialog({ open, onOpenChange, ficha }: FichaViewDialogPr
                 </div>
 
                 {/* RESPONSABLE INFO */}
-                <div className="grid grid-cols-3 gap-4 text-[11px] bg-slate-50 p-3 rounded border">
+                <div className="grid grid-cols-1 gap-4 rounded-xl border border-primary/15 bg-card p-4 text-[11px] shadow-sm sm:grid-cols-3">
                   <div>
                     <span className="font-bold block text-slate-500">RESPONSABLE DEL BIEN</span>
                     <span className="font-medium text-xs text-slate-800">{ficha.Responsable || "-"}</span>
@@ -134,7 +134,7 @@ export function FichaViewDialog({ open, onOpenChange, ficha }: FichaViewDialogPr
                 </div>
 
                 {/* SECTION III & IV: CONDICIÓN Y ESTADO */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
                     <h3 className="text-[11px] font-bold bg-slate-800 text-white px-2.5 py-1 uppercase tracking-wider rounded-t">
                       III. Condición del Bien
@@ -236,22 +236,6 @@ export function FichaViewDialog({ open, onOpenChange, ficha }: FichaViewDialogPr
                   </div>
                 </div>
 
-                {/* FIRMAS SECTION */}
-                <div className="pt-20 grid grid-cols-3 gap-6 text-center text-[10px] uppercase font-bold text-slate-700">
-                  <div className="flex flex-col items-center justify-end h-24">
-                    <div className="w-4/5 border-t border-slate-900 mb-2"></div>
-                    <span>RESP. DE SOPORTE TÉCNICO</span>
-                  </div>
-                  <div className="flex flex-col items-center justify-end h-24">
-                    <div className="w-4/5 border-t border-slate-900 mb-2"></div>
-                    <span>JEFE DE LA UNIDAD DE ESTADISTICA E INFORMATICA</span>
-                  </div>
-                  <div className="flex flex-col items-center justify-end h-24">
-                    <div className="w-4/5 border-t border-slate-900 mb-2"></div>
-                    <span>ÁREA USUARIA</span>
-                  </div>
-                </div>
-
                 {/* CREATOR USER DETAIL */}
                 <div className="text-[10px] text-slate-400 flex justify-between border-t pt-3 mt-4 print:mt-12">
                   <span>SISTEMA DE SOPORTE TI</span>
@@ -260,8 +244,8 @@ export function FichaViewDialog({ open, onOpenChange, ficha }: FichaViewDialogPr
               </div>
 
               {/* ACTION FOOTER */}
-              <div className="flex justify-end gap-3 pt-4 border-t print:hidden">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <div className="flex justify-end gap-3 border-t border-primary/10 pt-4 print:hidden">
+                <Button variant="outline" className="rounded-xl" onClick={() => onOpenChange(false)}>
                   Cerrar
                 </Button>
               </div>

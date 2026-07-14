@@ -13,13 +13,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import { useEffect, useMemo, useState } from "react";
 import QuickCreateMarcaModal from "./QuickCreateMarcaModal";
@@ -70,7 +63,6 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
     resolver: zodResolver(componenteSchema),
   });
 
-  const selectedMarca = watch("Marca");
   const codigoPatrimonialValue = watch("CodigoPatrimonial");
   const idBienValue = watch("IdBien");
 
@@ -119,18 +111,7 @@ export default function ComponenteFormModal({ componente, open, onOpenChange, re
     },
   });
 
-  const selectedMarcaName =
-    marcas?.find((m: { IdMarca: number; Marca: string }) => String(m.IdMarca) === String(selectedMarca))
-      ?.Marca || selectedMarca || "";
-
   const selectedBien = bienes?.find((b: any) => String(b.IdBien) === watch("IdBien"));
-  const selectedComponenteName = componentesCatalog?.find(
-    (c: any) => String(c.IdComponente) === watch("IdComponente")
-  )?.NombreComponente;
-
-  const selectedAreaName = watch("UbicacionFisica") || "";
-  const selectedEstadoName = watch("EstadoEquipo") || "";
-
   const codigoPatrimonialOptions = useMemo(
     () =>
       (bienes ?? [])
@@ -365,33 +346,25 @@ function SuggestionsList({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-3xl">
+        <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Inventario institucional</p>
           <DialogTitle className="text-xl font-semibold">
             {readOnly ? "Detalle del componente del bien" : componente ? "Editar componente del bien" : "Registrar componente del bien"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4 mt-4">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4 bg-primary/[0.025] px-6 py-6 [&_input]:rounded-xl [&_label]:font-semibold [&_label]:text-primary [&_textarea]:rounded-xl [&_[data-slot=select-trigger]]:rounded-xl">
           <input type="hidden" {...register("IdBienComponente")} />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Componente *</label>
-              <Select
+              <SearchableSelect
                 value={watch("IdComponente") || ""}
                 onValueChange={(val) => setValue("IdComponente", val as any)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar componente">{selectedComponenteName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {componentesCatalog?.map((c: any) => (
-                    <SelectItem key={c.IdComponente} value={String(c.IdComponente)}>
-                      {c.NombreComponente}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(componentesCatalog ?? []).map((c: any) => ({ value: String(c.IdComponente), label: String(c.NombreComponente) }))}
+                placeholder="Seleccione o busque componente"
+              />
               {errors.IdComponente && <p className="text-xs text-destructive">{errors.IdComponente.message}</p>}
             </div>
             <div className="space-y-1">
@@ -423,22 +396,13 @@ function SuggestionsList({
           <div className="space-y-1">
             <label className="text-sm font-medium text-foreground">Marca</label>
             <div className="flex items-center gap-2">
-              <Select
+              <SearchableSelect
                 value={watch("Marca") || ""}
                 onValueChange={(val) => setValue("Marca", val as any)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar marca">{selectedMarcaName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {marcas?.map((m: any) => (
-                    <SelectItem key={m.IdMarca} value={m.Marca}>
-                      {m.Marca}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(marcas ?? []).map((m: any) => ({ value: String(m.Marca), label: String(m.Marca) }))}
+                placeholder="Seleccione o busque marca"
+              />
               {!readOnly && <QuickCreateMarcaModal />}
             </div>
           </div>
@@ -516,22 +480,13 @@ function SuggestionsList({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Ubicación Física</label>
-              <Select
+              <SearchableSelect
                 value={watch("UbicacionFisica") || ""}
                 onValueChange={(val) => setValue("UbicacionFisica", val as any)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar área">{selectedAreaName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {areas?.map((a: any) => (
-                    <SelectItem key={a.IdArea} value={a.NombreArea}>
-                      {a.NombreArea}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(areas ?? []).map((a: any) => ({ value: String(a.NombreArea), label: String(a.NombreArea) }))}
+                placeholder="Seleccione o busque área"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Usuario Asignado</label>
@@ -545,22 +500,13 @@ function SuggestionsList({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Estado del Equipo</label>
-              <Select
+              <SearchableSelect
                 value={watch("EstadoEquipo") || ""}
                 onValueChange={(val) => setValue("EstadoEquipo", val as any)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar estado">{selectedEstadoName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {estados?.map((e: any) => (
-                    <SelectItem key={e.IdEstado} value={e.EstadoBien}>
-                      {e.EstadoBien}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(estados ?? []).map((e: any) => ({ value: String(e.EstadoBien), label: String(e.EstadoBien) }))}
+                placeholder="Seleccione o busque estado"
+              />
             </div>
             <div />
           </div>
@@ -575,10 +521,11 @@ function SuggestionsList({
             />
           </div>
 
-          <div className="flex justify-end space-x-2 mt-6">
+          <div className="mt-6 flex justify-end space-x-2 border-t border-primary/10 pt-4">
             <Button
               type="button"
               variant="outline"
+              className="rounded-xl"
               onClick={() => onOpenChange(false)}
             >
               {readOnly ? "Cerrar" : "Cancelar"}

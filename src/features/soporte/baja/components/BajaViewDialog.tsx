@@ -32,15 +32,15 @@ export function BajaViewDialog({ open, onOpenChange, baja, bienes }: BajaViewDia
     <>
       <DialogPrintStyles />
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl print:max-h-none print:border-none print:p-0 print:shadow-none">
-          <DialogHeader className="print:hidden">
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-5xl print:max-h-none print:border-none print:p-0 print:shadow-none">
+          <DialogHeader className="border-b border-destructive/10 bg-gradient-to-r from-destructive/10 via-destructive/5 to-card px-6 py-5 print:hidden">
             <DialogTitle>Detalle de ficha de baja</DialogTitle>
           </DialogHeader>
 
           {baja ? (
             <div
               id="printable-baja"
-              className="space-y-6 rounded-xl border border-slate-200 bg-white p-4 text-slate-800 print:border-none print:p-0"
+              className="space-y-6 bg-destructive/[0.035] p-6 text-slate-800 [&_h3]:!rounded-md [&_h3]:!bg-destructive/10 [&_h3]:!text-destructive print:bg-white print:p-0 print:[&_h3]:!rounded-t print:[&_h3]:!bg-slate-800 print:[&_h3]:!text-white"
             >
               <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4">
                 <div className="text-left">
@@ -64,7 +64,7 @@ export function BajaViewDialog({ open, onOpenChange, baja, bienes }: BajaViewDia
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 rounded border bg-slate-50 p-3 text-[11px] text-slate-700">
+              <div className="grid grid-cols-1 gap-4 rounded-xl border border-destructive/15 bg-card p-4 text-[11px] text-slate-700 shadow-sm sm:grid-cols-3">
                 <div>
                   <span className="block font-bold text-slate-500">RESPONSABLE DEL BIEN</span>
                   <span className="text-xs font-medium text-slate-800">
@@ -146,7 +146,7 @@ export function BajaViewDialog({ open, onOpenChange, baja, bienes }: BajaViewDia
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <h3 className="rounded-t bg-slate-800 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
                     III. Condición del Bien
@@ -177,15 +177,20 @@ export function BajaViewDialog({ open, onOpenChange, baja, bienes }: BajaViewDia
                     IV. Estado del Bien
                   </h3>
                   <div className="flex flex-wrap gap-4 rounded-b border border-t-0 p-3 text-[11px]">
-                    {["BUENO", "REGULAR", "MALO POR REPARAR", "MALO PARA BAJA"].map((label) => (
+                    {[
+                      { label: "Bueno", values: ["BUENO"] },
+                      { label: "Regular", values: ["REGULAR"] },
+                      { label: "Reparar", values: ["REPARAR", "MALO POR REPARAR"] },
+                      { label: "Baja", values: ["BAJA", "MALO PARA BAJA"] },
+                    ].map(({ label, values }) => (
                       <label key={label} className="flex items-center gap-1.5">
                         <input
                           type="checkbox"
-                          checked={estadoLabel.toUpperCase().includes(label)}
+                          checked={values.some((value) => estadoLabel.toUpperCase().includes(value))}
                           readOnly
                           className="pointer-events-none rounded text-blue-600"
                         />
-                        <span className="capitalize">{label.toLowerCase()}</span>
+                        <span>{label}</span>
                       </label>
                     ))}
                   </div>
@@ -209,33 +214,17 @@ export function BajaViewDialog({ open, onOpenChange, baja, bienes }: BajaViewDia
                 ))}
               </div>
 
-              <div className="grid grid-cols-3 gap-6 pt-16 text-center text-[10px] font-bold uppercase text-slate-700">
-                {[
-                  { label: "Especialista Validador", name: baja.Validador },
-                  { label: "Jefe de Área Usuaria", name: baja.JefeArea },
-                  { label: "Jefe de Control Patrimonial", name: baja.JefePatrimonial },
-                ].map(({ label, name }) => (
-                  <div key={label} className="flex h-24 flex-col items-center justify-end">
-                    <div className="mb-2 w-4/5 border-t border-slate-900" />
-                    <span>{label}</span>
-                    <span className="mt-1 text-[9px] font-normal normal-case text-slate-500">
-                      {name || "-"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
               <div className="mt-4 flex items-center justify-between border-t pt-3 text-[10px] text-slate-400 print:mt-12 print:text-slate-500">
                 <span>SISTEMA DE SOPORTE Y BAJA DE BIENES</span>
               </div>
             </div>
           ) : null}
 
-          <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4 print:hidden">
+          <div className="flex flex-wrap justify-end gap-3 border-t border-destructive/10 bg-muted/20 px-6 py-4 print:hidden">
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="border-slate-200 text-slate-700 hover:bg-slate-50"
+              className="rounded-xl"
             >
               Cerrar
             </Button>

@@ -11,6 +11,8 @@ import type { FichaSoporteRecord } from "@/features/soporte/ficha/types";
 
 export const ESTADOS_TICKET = [
   "Pendiente",
+  "Aprobada",
+  "Rechazada",
   "En Proceso",
   "Atendido",
   "Derivado",
@@ -45,6 +47,13 @@ function matchesSearch(ficha: FichaSoporteRecord, texto: string): boolean {
     diag.includes(texto) ||
     rec.includes(texto)
   );
+}
+
+function getEstadoMostrado(ficha: FichaSoporteRecord): string {
+  const estadoAprobacion = String(ficha.EstadoAprobacion || "").trim();
+  return estadoAprobacion && estadoAprobacion.toUpperCase() !== "PENDIENTE"
+    ? estadoAprobacion
+    : String(ficha.EstadoTicket || "").trim();
 }
 
 export function useFichaList() {
@@ -90,7 +99,7 @@ export function useFichaList() {
     return list.filter((ficha) => {
       const matchesEstadoTicket =
         !filterEstadoTicket ||
-        String(ficha.EstadoTicket || "").toLowerCase() === filterEstadoTicket.toLowerCase();
+        getEstadoMostrado(ficha).toLowerCase() === filterEstadoTicket.toLowerCase();
       const prioridadNombre =
         ficha.Prioridad?.NombrePrioridad || String(ficha.IdPrioridad ?? "");
       const matchesPrioridad =

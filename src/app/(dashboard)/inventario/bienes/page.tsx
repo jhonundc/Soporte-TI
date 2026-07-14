@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2, Eye, Power, Upload } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import BienImportModal from "@/components/inventory/BienImportModal";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { BienFormModal } from "@/lib/lazy/inventory-modals";
 import { useState, useMemo, useDeferredValue } from "react";
 import { getAreas, getCondiciones } from "@/app/actions/catalogs";
@@ -257,7 +250,7 @@ export default function BienesPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 px-4 py-6 lg:px-8">
       <PageHeader
         title="Inventario de Bienes"
         description="Gestión de equipos y bienes institucionales."
@@ -305,6 +298,15 @@ export default function BienesPage() {
         }}
       />
 
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-primary">Inventario institucional</p>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Listado de bienes</h2>
+          </div>
+          <div className="rounded-xl border border-primary/15 bg-card/80 px-4 py-3 text-sm shadow-sm"><p className="text-xs uppercase tracking-wide text-muted-foreground">Resultados</p><p className="mt-1 text-2xl font-semibold text-primary">{filteredBienes.length}</p></div>
+        </div>
+        <div className="space-y-4 p-4 sm:p-6">
       <FilterBar
         fieldsClassName="lg:grid-cols-4"
         activeCount={
@@ -351,24 +353,20 @@ export default function BienesPage() {
           />
         </FilterField>
         <FilterField label="Condición" htmlFor="filter-condicion">
-          <Select
-            value={filterCondicion || null}
+          <SearchableSelect
+            id="filter-condicion"
+            value={filterCondicion}
             onValueChange={(value) => {
-              setFilterCondicion(value ?? "");
+              setFilterCondicion(value);
               setVisibleCount(9);
             }}
-          >
-            <SelectTrigger id="filter-condicion" className="w-full">
-              <SelectValue placeholder="Seleccione condición" />
-            </SelectTrigger>
-            <SelectContent>
-              {condiciones?.map((condicion: { IdCondicion: number; Condicion: string }) => (
-                <SelectItem key={condicion.IdCondicion} value={condicion.Condicion}>
-                  {condicion.Condicion}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={(condiciones ?? []).map((condicion: { Condicion: string }) => ({
+              value: condicion.Condicion,
+              label: condicion.Condicion,
+            }))}
+            placeholder="Seleccione o busque condición"
+            emptyMessage="No hay condiciones que coincidan"
+          />
         </FilterField>
       </FilterBar>
 
@@ -396,6 +394,8 @@ export default function BienesPage() {
           </div>
         }
       />
+        </div>
+      </section>
     </div>
   );
 }

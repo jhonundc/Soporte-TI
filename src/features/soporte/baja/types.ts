@@ -28,6 +28,7 @@ export type BajaRecord = {
   Observacion?: string;
   Fundamentacion?: string;
   IdUsuarioRegistro?: number;
+  EstadoAprobacion?: string;
   FechaRegistro?: string;
   Validador?: string;
   JefeArea?: string;
@@ -68,8 +69,8 @@ export const CONDICION_OPTIONS = ["Operativo", "Inoperativo"] as const;
 export const ESTADO_OPTIONS = [
   "Bueno",
   "Regular",
-  "Malo por reparar",
-  "Malo para baja",
+  "Reparar",
+  "Baja",
 ] as const;
 export const TIPO_BIEN_OPTIONS = [
   "Informático",
@@ -108,7 +109,12 @@ export function getCondicionBadgeClass(value?: string) {
 
 export function getEstadoBadgeClass(value?: string) {
   const normalized = (value || "").toLowerCase();
-  if (normalized.includes("malo para baja") || normalized.includes("malo por reparar")) {
+  if (
+    normalized.includes("malo para baja") ||
+    normalized.includes("malo por reparar") ||
+    normalized.includes("reparar") ||
+    normalized === "baja"
+  ) {
     return "bg-warning/10 text-warning ring-warning/20";
   }
   if (normalized.includes("regular")) {

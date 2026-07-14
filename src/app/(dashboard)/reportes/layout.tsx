@@ -10,7 +10,7 @@ export default function ReportesLayout({ children }: { children: React.ReactNode
   const breadcrumbs = buildBreadcrumbs(pathname);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 px-4 py-6 lg:px-8">
       <Breadcrumbs items={breadcrumbs} />
       <ReportesTabs />
       {children}

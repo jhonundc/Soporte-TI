@@ -4,13 +4,6 @@ import { useState, useMemo, useDeferredValue, type UIEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Plus, Search, Edit, Trash2, Eye, Power, Upload } from "lucide-react";
 import { SoftwareFormModal } from "@/lib/lazy/inventory-modals";
 import { DataTable } from "@/components/data-display/DataTable";
@@ -329,7 +322,7 @@ export default function SoftwarePage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 px-4 py-6 lg:px-8">
       <PageHeader
         title="Inventario de Software"
         description="Registro, edición y seguimiento de licencias de software."
@@ -377,6 +370,15 @@ export default function SoftwarePage() {
         }}
       />
 
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-primary">Inventario institucional</p>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Listado de software</h2>
+          </div>
+          <div className="rounded-xl border border-primary/15 bg-card/80 px-4 py-3 text-sm shadow-sm"><p className="text-xs uppercase tracking-wide text-muted-foreground">Resultados</p><p className="mt-1 text-2xl font-semibold text-primary">{filteredSoftware.length}</p></div>
+        </div>
+        <div className="space-y-4 p-4 sm:p-6">
       <FilterBar
         fieldsClassName="lg:grid-cols-4"
         activeCount={
@@ -419,44 +421,33 @@ export default function SoftwarePage() {
           />
         </FilterField>
         <FilterField label="Estado licencia" htmlFor="filter-estado-licencia">
-          <Select
-            value={filterEstadoLicencia || null}
+          <SearchableSelect
+            id="filter-estado-licencia"
+            value={filterEstadoLicencia}
             onValueChange={(value) => {
-              setFilterEstadoLicencia(value ?? "");
+              setFilterEstadoLicencia(value);
               setVisibleCount(12);
             }}
-          >
-            <SelectTrigger id="filter-estado-licencia" className="w-full">
-              <SelectValue placeholder="Seleccione estado" />
-            </SelectTrigger>
-            <SelectContent>
-              {ESTADOS_LICENCIA.map((estado) => (
-                <SelectItem key={estado} value={estado}>
-                  {estado}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={ESTADOS_LICENCIA.map((estado) => ({ value: estado, label: estado }))}
+            placeholder="Seleccione o busque estado"
+            emptyMessage="No hay estados que coincidan"
+          />
         </FilterField>
         <FilterField label="Tipo licencia" htmlFor="filter-tipo-licencia">
-          <Select
-            value={filterTipoLicencia || null}
+          <SearchableSelect
+            id="filter-tipo-licencia"
+            value={filterTipoLicencia}
             onValueChange={(value) => {
-              setFilterTipoLicencia(value ?? "");
+              setFilterTipoLicencia(value);
               setVisibleCount(12);
             }}
-          >
-            <SelectTrigger id="filter-tipo-licencia" className="w-full">
-              <SelectValue placeholder="Seleccione licencia" />
-            </SelectTrigger>
-            <SelectContent>
-              {tiposLicencia?.map((tipo: { IdTipoLicencia: number; TipoLicencia: string }) => (
-                <SelectItem key={tipo.IdTipoLicencia} value={tipo.TipoLicencia}>
-                  {tipo.TipoLicencia}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={(tiposLicencia ?? []).map((tipo: { TipoLicencia: string }) => ({
+              value: tipo.TipoLicencia,
+              label: tipo.TipoLicencia,
+            }))}
+            placeholder="Seleccione o busque licencia"
+            emptyMessage="No hay licencias que coincidan"
+          />
         </FilterField>
       </FilterBar>
 
@@ -485,6 +476,8 @@ export default function SoftwarePage() {
           </div>
         }
       />
+        </div>
+      </section>
     </div>
   );
 }

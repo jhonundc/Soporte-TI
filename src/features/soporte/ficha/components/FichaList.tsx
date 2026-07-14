@@ -7,13 +7,6 @@ import { TableRowActions, TableActionButton } from "@/components/data-display/Ta
 import { FilterBar, FilterField } from "@/components/forms/FilterBar";
 import { IconInput } from "@/components/forms/IconInput";
 import { SearchableSelect } from "@/components/forms/SearchableSelect";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Edit, Eye, Power, Printer, Search, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ESTADOS_TICKET } from "@/features/soporte/ficha/hooks/useFichaList";
@@ -45,14 +38,21 @@ interface FichaListProps {
 }
 
 function TicketStatusBadge({ status }: { status?: string | null }) {
-  const cerrado = String(status || "").toLowerCase() === "cerrado";
+  const normalizedStatus = String(status || "").toLowerCase();
+  const cerrado = normalizedStatus === "cerrado";
+  const aprobado = normalizedStatus === "aprobada";
+  const rechazado = normalizedStatus === "rechazada";
   return (
     <span
       className={cn(
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset",
         cerrado
           ? "bg-muted text-muted-foreground ring-border"
-          : "bg-warning/10 text-warning ring-warning/20"
+          : aprobado
+            ? "bg-success/10 text-success ring-success/20"
+            : rechazado
+              ? "bg-destructive/10 text-destructive ring-destructive/20"
+              : "bg-warning/10 text-warning ring-warning/20"
       )}
     >
       {status || "-"}
@@ -154,7 +154,14 @@ export function FichaList({
       {
         id: "estadoTicket",
         header: "Estado Ticket",
-        cell: ({ row }) => <TicketStatusBadge status={row.original.EstadoTicket} />,
+        cell: ({ row }) => {
+          const estadoAprobacion = String(row.original.EstadoAprobacion || "").trim();
+          const estado =
+            estadoAprobacion && estadoAprobacion.toUpperCase() !== "PENDIENTE"
+              ? estadoAprobacion
+              : row.original.EstadoTicket;
+          return <TicketStatusBadge status={estado} />;
+        },
       },
       {
         id: "usuario",
@@ -230,40 +237,29 @@ export function FichaList({
           />
         </FilterField>
         <FilterField label="Estado ticket" htmlFor="filter-estado-ticket">
-          <Select
-            value={filterEstadoTicket || null}
-            onValueChange={(value) => onFilterEstadoTicketChange(value ?? "")}
-          >
-            <SelectTrigger id="filter-estado-ticket" className="w-full">
-              <SelectValue placeholder="Seleccione estado" />
-            </SelectTrigger>
-            <SelectContent>
-              {ESTADOS_TICKET.map((estado) => (
-                <SelectItem key={estado} value={estado}>
-                  {estado}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            id="filter-estado-ticket"
+            value={filterEstadoTicket}
+            onValueChange={onFilterEstadoTicketChange}
+            options={ESTADOS_TICKET.map((estado) => ({ value: estado, label: estado }))}
+            placeholder="Seleccione o busque estado"
+            emptyMessage="No hay estados que coincidan"
+          />
         </FilterField>
         <FilterField label="Prioridad" htmlFor="filter-prioridad">
-          <Select
-            value={filterPrioridad || null}
-            onValueChange={(value) => onFilterPrioridadChange(value ?? "")}
-          >
-            <SelectTrigger id="filter-prioridad" className="w-full">
-              <SelectValue placeholder="Seleccione prioridad" />
-            </SelectTrigger>
-            <SelectContent>
-              {prioridades?.map((prioridad) =>
-                prioridad.NombrePrioridad ? (
-                  <SelectItem key={prioridad.IdPrioridad} value={prioridad.NombrePrioridad}>
-                    {prioridad.NombrePrioridad}
-                  </SelectItem>
-                ) : null
-              )}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            id="filter-prioridad"
+            value={filterPrioridad}
+            onValueChange={onFilterPrioridadChange}
+            options={(prioridades ?? [])
+              .filter((prioridad) => Boolean(prioridad.NombrePrioridad))
+              .map((prioridad) => {
+                const nombre = String(prioridad.NombrePrioridad ?? "");
+                return { value: nombre, label: nombre };
+              })}
+            placeholder="Seleccione o busque prioridad"
+            emptyMessage="No hay prioridades que coincidan"
+          />
         </FilterField>
         <FilterField label="Área" htmlFor="filter-area-ficha">
           <SearchableSelect

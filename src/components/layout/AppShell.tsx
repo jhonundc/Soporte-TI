@@ -8,7 +8,9 @@ import { useEffect, useState } from "react";
 
 import { usePathname, useRouter } from "next/navigation";
 
-import { LogOut, Menu, User, Key, Bell } from "lucide-react";
+import { LogOut, Menu, User, Key, Bell, Moon, Sun } from "lucide-react";
+
+import { useQuery } from "@tanstack/react-query";
 
 import Sidebar from "@/components/layout/Sidebar";
 
@@ -52,6 +54,10 @@ import {
 
 import { useSession } from "@/lib/hooks/useSession";
 
+import { queryKeys } from "@/lib/query-keys";
+
+import { notificacionService, type NotificacionRecord } from "@/services/notificacion.service";
+
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 
 import { PageTransition } from "@/components/layout/PageTransition";
@@ -80,14 +86,85 @@ export function AppShell({ children }: AppShellProps) {
 
   const { data: sessionData } = useSession();
   const role = String(sessionData?.user?.role || "").toLowerCase();
+  const notificationStorageKey = sessionData?.user?.id
+    ? `notificaciones-vistas:${sessionData.user.id}`
+    : null;
+  const [seenNotificationIds, setSeenNotificationIds] = useState<number[]>([]);
+  const canViewNotifications = role === "admin" || role === "soporte";
+  const isAdmin = role === "admin";
+  const isSupport = role === "soporte";
+  const { data: allNotifications = [] } = useQuery({
+    queryKey: queryKeys.notificaciones("campana"),
+    queryFn: () => notificacionService.list(),
+    enabled: canViewNotifications,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+  const bellNotifications = allNotifications
+    .filter((notification) => {
+      const status = String(notification.EstadoAprobacion || "").trim().toUpperCase();
+      return (isAdmin && status === "PENDIENTE") ||
+        (isSupport && (status === "APROBADA" || status === "RECHAZADA"));
+    })
+    .slice(0, 5);
+  const unseenBellNotifications = bellNotifications.filter(
+    (notification) => !seenNotificationIds.includes(notification.IdNotificacion)
+  );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const displayName = (sessionData as any)?.user?.name || (sessionData as any)?.user?.Nombres || (sessionData as any)?.user?.username || "R";
-  const shortName = (() => {
-    const s = String(displayName || "").trim();
-    const parts = s.split(/\s+/).filter(Boolean);
-    if (!parts.length) return "";
-    return parts.length > 1 ? `${parts[0]} ${parts[1]}` : parts[0];
-  })();
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const storedTheme = window.localStorage.getItem("inventario-ti-theme");
+    return storedTheme
+      ? storedTheme === "dark"
+      : window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  const displayName = sessionData?.user?.name || sessionData?.user?.username || "R";
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDarkMode);
+  }, [isDarkMode]);
+
+  const toggleTheme = () => {
+    setIsDarkMode((currentMode) => {
+      const nextMode = !currentMode;
+      window.localStorage.setItem("inventario-ti-theme", nextMode ? "dark" : "light");
+      return nextMode;
+    });
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!notificationStorageKey) {
+        setSeenNotificationIds([]);
+        return;
+      }
+
+      try {
+        const storedIds = JSON.parse(window.localStorage.getItem(notificationStorageKey) || "[]");
+        setSeenNotificationIds(
+          Array.isArray(storedIds)
+            ? storedIds.filter((id): id is number => Number.isSafeInteger(id))
+            : []
+        );
+      } catch {
+        setSeenNotificationIds([]);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [notificationStorageKey]);
+
+  const markBellNotificationsAsSeen = () => {
+    if (!notificationStorageKey || bellNotifications.length === 0) return;
+
+    setSeenNotificationIds((currentIds) => {
+      const nextIds = Array.from(
+        new Set([...currentIds, ...bellNotifications.map((notification) => notification.IdNotificacion)])
+      ).slice(-200);
+      window.localStorage.setItem(notificationStorageKey, JSON.stringify(nextIds));
+      return nextIds;
+    });
+  };
 
   useEffect(() => {
 
@@ -245,15 +322,90 @@ export function AppShell({ children }: AppShellProps) {
 
           <div className="flex items-center gap-3">
             <Button
-              type="button"
               variant="ghost"
               size="icon-sm"
-              className="rounded-lg text-muted-foreground hover:text-foreground"
-              aria-label="Notificaciones"
-              onClick={() => router.push("/centro-notificaciones")}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={toggleTheme}
+              aria-label={isDarkMode ? "Activar modo claro" : "Activar modo oscuro"}
+              title={isDarkMode ? "Modo claro" : "Modo oscuro"}
             >
-              <Bell className="size-5" />
+              {isDarkMode ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </Button>
+            <DropdownMenu
+              onOpenChange={(open) => {
+                if (open) markBellNotificationsAsSeen();
+              }}
+            >
+              <DropdownMenuTrigger
+                className="relative inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label={
+                  unseenBellNotifications.length
+                    ? `Notificaciones sin ver: ${unseenBellNotifications.length}`
+                    : "Notificaciones"
+                }
+              >
+                <Bell className="size-5" />
+                {unseenBellNotifications.length ? (
+                  <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground">
+                    {unseenBellNotifications.length > 9 ? "9+" : unseenBellNotifications.length}
+                  </span>
+                ) : null}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 p-2">
+                <div className="px-2 py-1.5 text-sm font-semibold text-foreground">
+                  Notificaciones
+                </div>
+                <DropdownMenuSeparator />
+                {bellNotifications.length ? (
+                  bellNotifications.map((notification: NotificacionRecord) => {
+                    const status = String(notification.EstadoAprobacion || "").trim().toUpperCase();
+                    const isPending = status === "PENDIENTE";
+                    return (
+                      <DropdownMenuItem
+                        key={notification.IdNotificacion}
+                        className="cursor-pointer items-start px-2 py-2.5"
+                        onClick={() =>
+                          router.push(
+                            `/centro-notificaciones/${
+                              String(notification.TipoFicha || "").trim().toUpperCase() === "BAJA"
+                                ? "fichas-baja"
+                                : "fichas-soporte"
+                            }?notificacion=${notification.IdNotificacion}`
+                          )
+                        }
+                      >
+                        <div className="min-w-0 space-y-1">
+                          <p className="truncate font-medium text-foreground">
+                            {notification.Titulo || "Ficha"}
+                          </p>
+                          <p className="line-clamp-2 text-xs text-muted-foreground">
+                            {isPending
+                              ? "Nueva ficha de soporte pendiente de revisión."
+                              : `Solicitud ${status.toLowerCase()}${
+                                  notification.NombreUsuarioRespondio
+                                    ? ` por ${notification.NombreUsuarioRespondio}`
+                                    : ""
+                                }.`}
+                          </p>
+                          <span className="text-xs font-medium text-primary">Ver detalles</span>
+                        </div>
+                      </DropdownMenuItem>
+                    );
+                  })
+                ) : (
+                  <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+                    No tienes notificaciones nuevas.
+                  </p>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer justify-center py-2 text-primary"
+                  onClick={() => router.push("/centro-notificaciones/fichas-soporte")}
+                >
+                  Ver todas las notificaciones
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <span className="hidden sm:inline-block text-sm font-medium">{displayName}</span>
             <DropdownMenu>
               <DropdownMenuTrigger

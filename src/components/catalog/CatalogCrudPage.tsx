@@ -290,30 +290,44 @@ export function CatalogCrudPage({ config }: CatalogCrudPageProps) {
       : `Agregar ${config.entityLabel}`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 px-4 py-6 lg:px-8">
       <PageHeader
         title={config.title}
         description={config.description}
         actions={
-          <Button size="lg" className="gap-2" onClick={openCreate}>
+          <Button size="lg" className="gap-2 rounded-xl shadow-sm" onClick={openCreate}>
             <Plus className="size-4" aria-hidden="true" />
             {config.newButtonLabel ?? "Nuevo"}
           </Button>
         }
       />
 
-      <DataTable
-        columns={columns}
-        data={data ?? []}
-        isLoading={isLoading}
-        error={error as Error | null}
-        emptyMessage={config.emptyMessage ?? "No hay registros."}
-        getRowClassName={(row) =>
-          config.showStatusColumn && !row.original.Activo
-            ? "text-muted-foreground opacity-75"
-            : undefined
-        }
-      />
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-primary">Administración de catálogos</p>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Registros de {config.entityLabel}</h2>
+          </div>
+          <div className="rounded-xl border border-primary/15 bg-card/80 px-4 py-3 text-sm shadow-sm">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Registros</p>
+            <p className="mt-1 text-2xl font-semibold text-primary">{data?.length ?? 0}</p>
+          </div>
+        </div>
+        <div className="p-4 sm:p-6">
+          <DataTable
+            columns={columns}
+            data={data ?? []}
+            isLoading={isLoading}
+            error={error as Error | null}
+            emptyMessage={config.emptyMessage ?? "No hay registros."}
+            getRowClassName={(row) =>
+              config.showStatusColumn && !row.original.Activo
+                ? "text-muted-foreground opacity-75"
+                : undefined
+            }
+          />
+        </div>
+      </section>
 
       <Dialog
         open={open}
@@ -322,34 +336,37 @@ export function CatalogCrudPage({ config }: CatalogCrudPageProps) {
           else setOpen(true);
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold capitalize">
+        <DialogContent className="overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-md">
+          <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
+            <DialogTitle className="text-xl font-semibold capitalize text-foreground">
               {dialogTitle}
             </DialogTitle>
           </DialogHeader>
 
           {readOnly ? (
-            <div className="mt-4 space-y-4">
-              {config.fields.map((field) => (
-                <div key={field.name}>
-                  <p className="text-sm text-muted-foreground">{field.label}</p>
-                  <p className="mt-1 text-base text-foreground">
+            <div className="space-y-4 bg-surface p-6">
+              <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+                {config.fields.map((field, index) => (
+                <div key={field.name} className={index ? "border-t border-border px-4 py-3" : "px-4 py-3"}>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-primary">{field.label}</p>
+                  <p className="mt-1 text-base font-medium text-foreground">
                     {String(editingItem?.[field.name] ?? "-") || "-"}
                   </p>
                 </div>
-              ))}
-              <div className="mt-6 flex justify-end">
-                <Button type="button" variant="outline" onClick={closeDialog}>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" className="rounded-xl" onClick={closeDialog}>
                   Cerrar
                 </Button>
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 bg-surface p-6">
+              <div className="space-y-4 rounded-xl border border-primary/15 bg-card p-4 shadow-sm">
               {config.fields.map((field) => (
                 <div key={field.name} className="space-y-1">
-                  <label htmlFor={`catalog-${field.name}`} className="text-sm font-medium text-foreground">
+                  <label htmlFor={`catalog-${field.name}`} className="text-sm font-semibold text-foreground">
                     {field.label}
                     {field.required ? " *" : ""}
                   </label>
@@ -359,6 +376,7 @@ export function CatalogCrudPage({ config }: CatalogCrudPageProps) {
                     placeholder={field.placeholder}
                     aria-invalid={Boolean(errors[field.name])}
                     aria-describedby={errors[field.name] ? `catalog-${field.name}-error` : undefined}
+                    className="border-primary/20 bg-card"
                   />
                   {errors[field.name] ? (
                     <p id={`catalog-${field.name}-error`} className="text-xs text-destructive" role="alert">
@@ -367,12 +385,14 @@ export function CatalogCrudPage({ config }: CatalogCrudPageProps) {
                   ) : null}
                 </div>
               ))}
-              <div className="mt-6 flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={closeDialog}>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" className="rounded-xl" onClick={closeDialog}>
                   Cancelar
                 </Button>
                 <Button
                   type="submit"
+                  className="rounded-xl"
                   disabled={saveMutation.isPending}
                 >
                   {saveMutation.isPending ? "Guardando..." : editingItem ? "Actualizar" : "Guardar"}

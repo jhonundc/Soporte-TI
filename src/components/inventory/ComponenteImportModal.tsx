@@ -798,19 +798,19 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-6xl p-0 bg-white max-h-[92vh] overflow-hidden flex flex-col">
-        <DialogHeader className="px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-b border-slate-700">
-          <DialogTitle className="text-xl font-semibold text-white flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-cyan-300" />
+      <DialogContent className="flex max-h-[92vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-6xl">
+        <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
+          <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-foreground">
+            <FileSpreadsheet className="h-5 w-5 text-primary" />
             Importar Componentes por Excel
           </DialogTitle>
-          <p className="text-slate-300 text-sm mt-1">Carga masiva de componentes con validación y resultado por fila.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Carga masiva de componentes con validación y resultado por fila.</p>
         </DialogHeader>
 
-        <div className="p-6 space-y-5 overflow-y-auto flex-1 min-h-0">
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-sm font-semibold text-slate-800 mb-2">Indicaciones</p>
-            <div className="grid md:grid-cols-2 gap-2 text-sm text-slate-700">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto bg-surface p-6">
+          <div className="rounded-xl border border-primary/15 bg-primary/[0.04] p-4">
+            <p className="mb-2 inline-flex rounded-md bg-primary/10 px-2.5 py-1 text-sm font-semibold text-primary">Indicaciones</p>
+            <div className="grid gap-2 text-sm text-foreground md:grid-cols-2">
               <p>1. Usa la plantilla PRO para mantener formato y diseño.</p>
               <p>2. En la columna <strong>Componente</strong> coloca el nombre exacto del componente (no el ID).</p>
               <p>3. Marca, Modelo y Número de Serie ayudan a identificar y evitar duplicados.</p>
@@ -818,22 +818,22 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 p-4 bg-white shadow-sm">
-            <div className="grid lg:grid-cols-[1fr_auto_auto] gap-3 items-center">
-              <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleSelectFile} className="border-slate-300" />
-              <Button type="button" variant="outline" onClick={handleDownloadTemplate} className="border-slate-300 text-slate-700 hover:bg-slate-50">
+          <div className="rounded-xl border border-primary/15 bg-card p-4 shadow-sm">
+            <div className="grid items-center gap-3 lg:grid-cols-[1fr_auto_auto]">
+              <Input type="file" accept=".xlsx,.xls,.csv" onChange={handleSelectFile} className="border-primary/20 bg-card" />
+              <Button type="button" variant="outline" onClick={handleDownloadTemplate} className="rounded-xl border-primary/20 text-primary hover:bg-primary/5">
                 <Download className="h-4 w-4 mr-2" />
                 Descargar plantilla
               </Button>
-              <Button onClick={handleImport} disabled={importMutation.isPending || !rows.length} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button onClick={handleImport} disabled={importMutation.isPending || !rows.length} className="rounded-xl">
                 <UploadCloud className="h-4 w-4 mr-2" />
                 {importMutation.isPending ? "Importando..." : "Importar archivo"}
               </Button>
             </div>
 
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-              <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-slate-700 border border-slate-200">Archivo: {fileName || "sin seleccionar"}</span>
-              <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-blue-700 border border-blue-200">Filas detectadas: {rows.length}</span>
+              <span className="inline-flex items-center rounded-full border border-border bg-muted px-3 py-1 text-muted-foreground">Archivo: {fileName || "sin seleccionar"}</span>
+              <span className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-primary">Filas detectadas: {rows.length}</span>
               {hasErrorRows && (
                 <Button
                   type="button"
@@ -848,9 +848,9 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
           </div>
 
           {!!previewRows.length && !results.length && (
-            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
-                <p className="text-sm font-semibold text-slate-800">Vista previa del archivo</p>
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <div className="border-b border-primary/10 bg-primary/[0.04] px-4 py-3">
+                <p className="text-sm font-semibold text-primary">Vista previa del archivo</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm leading-tight">
@@ -899,9 +899,9 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
           )}
 
           {!!errorResultRows.length && (
-            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
-                <p className="text-sm font-semibold text-slate-800">Errores a corregir</p>
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <div className="border-b border-destructive/10 bg-destructive/[0.04] px-4 py-3">
+                <p className="text-sm font-semibold text-destructive">Errores a corregir</p>
               </div>
               <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
                 <table className="w-full text-sm leading-tight">
@@ -1104,9 +1104,9 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
           )}
 
           {!!results.length && (
-            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-              <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
-                <p className="text-sm font-semibold text-slate-800">Resultado de importación</p>
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+              <div className="border-b border-success/15 bg-success/5 px-4 py-3">
+                <p className="text-sm font-semibold text-success">Resultado de importación</p>
               </div>
               <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
                 <table className="w-full text-sm leading-tight">

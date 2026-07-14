@@ -47,8 +47,7 @@ export function requireRole(
 }
 
 export function isAdminRole(role: string): boolean {
-  const normalized = role.toLowerCase();
-  return !normalized.includes("soporte");
+  return role.trim().toLowerCase() === "admin";
 }
 
 export async function requireAdmin(): Promise<

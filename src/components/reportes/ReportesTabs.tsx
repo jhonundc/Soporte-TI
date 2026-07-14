@@ -13,8 +13,8 @@ export function ReportesTabs() {
   const pathname = usePathname();
 
   return (
-    <div className="border-b border-border">
-      <nav aria-label="Secciones de reportes" className="-mb-px flex gap-1 overflow-x-auto">
+    <div className="rounded-xl border border-border bg-card p-1 shadow-[var(--shadow-soft)]">
+      <nav aria-label="Secciones de reportes" className="flex gap-1 overflow-x-auto">
         {REPORTES_TABS.map((tab) => {
           const isActive = pathname.startsWith(tab.href);
 
@@ -23,10 +23,10 @@ export function ReportesTabs() {
               key={tab.href}
               href={tab.href}
               className={cn(
-                "whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                "whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                 isActive
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
               aria-current={isActive ? "page" : undefined}
             >

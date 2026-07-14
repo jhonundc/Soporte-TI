@@ -10,13 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import {
   CAUSAL_BAJA_OPTIONS,
   CONDICION_OPTIONS,
@@ -63,10 +57,10 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
       }}
     >
       <FormDialogContent size="xl" className="max-h-[92vh] overflow-y-auto p-0">
-        <div className="border-b border-border bg-muted/30 px-6 py-5 sm:px-8">
+        <div className="border-b border-destructive/10 bg-gradient-to-r from-destructive/10 via-destructive/5 to-card px-6 py-5 sm:px-8">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-medium tracking-[0.2em] text-primary uppercase">Hospital Rezola</p>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-destructive">Registro de baja</p>
               <DialogHeader className="space-y-1 text-left">
                 <DialogTitle>
                   {editingBaja ? "Editar Ficha de Baja" : "Nueva Ficha de Baja"}
@@ -76,11 +70,11 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                 </DialogDescription>
               </DialogHeader>
             </div>
-            <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
+            <div className="rounded-xl border border-destructive/15 bg-card/80 px-4 py-3 text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
               <span className="block text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                 Estado
               </span>
-              <span className="font-semibold text-foreground">
+              <span className="font-semibold text-destructive">
                 {editingBaja ? "Edición" : "Nuevo registro"}
               </span>
             </div>
@@ -107,7 +101,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                   Número, unidad orgánica, responsable, dependencia y ambiente.
                 </p>
               </div>
-              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-700">
+              <span className="rounded-full bg-destructive/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-destructive">
                 Institucional
               </span>
             </div>
@@ -139,21 +133,12 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
               </label>
               <label className="space-y-1.5 text-sm text-foreground">
                 <span className="font-medium">Dependencia</span>
-                <Select
+                <SearchableSelect
                   value={watch("Dependencia") || ""}
                   onValueChange={(val) => setValue("Dependencia", val ?? "")}
-                >
-                  <SelectTrigger className="h-11 rounded-xl border-border bg-white shadow-sm">
-                    <SelectValue placeholder="Seleccione dependencia" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DEPENDENCIA_OPTIONS.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={DEPENDENCIA_OPTIONS.map((item) => ({ value: item, label: item }))}
+                  placeholder="Seleccione o busque dependencia"
+                />
               </label>
               <label className="space-y-1.5 text-sm text-foreground md:col-span-2 xl:col-span-1">
                 <span className="font-medium">Ambiente</span>
@@ -189,7 +174,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                         key={bien.IdBien}
                         type="button"
                         onClick={() => selectBien(bien)}
-                        className={`w-full border-b border-slate-100 px-3 py-3 text-left transition hover:bg-muted/30 ${String(watch("IdBien")) === String(bien.IdBien) ? "bg-blue-50" : ""}`}
+                        className={`w-full border-b border-slate-100 px-3 py-3 text-left transition hover:bg-muted/30 ${String(watch("IdBien")) === String(bien.IdBien) ? "bg-destructive/5" : ""}`}
                       >
                         <div className="text-sm font-semibold text-slate-800">
                           {bien.Descripcion || "Sin descripción"}
@@ -209,26 +194,23 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
               </label>
               <label className="space-y-1.5 text-sm text-foreground">
                 <span className="font-medium">Prioridad</span>
-                <Select
+                <SearchableSelect
                   value={watch("Prioridad") || ""}
                   onValueChange={(val) => setValue("Prioridad", val ?? "")}
-                >
-                  <SelectTrigger className="h-11 rounded-xl border-border bg-muted/30 shadow-sm">
-                    <SelectValue placeholder="Seleccione prioridad" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Alta">Alta</SelectItem>
-                    <SelectItem value="Media">Media</SelectItem>
-                    <SelectItem value="Baja">Baja</SelectItem>
-                  </SelectContent>
-                </Select>
+                  options={[
+                    { value: "Alta", label: "Alta" },
+                    { value: "Media", label: "Media" },
+                    { value: "Baja", label: "Baja" },
+                  ]}
+                  placeholder="Seleccione o busque prioridad"
+                />
               </label>
             </div>
 
             <div className="mt-4 rounded-2xl border border-border bg-muted/30 p-4 text-xs text-foreground shadow-sm">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-semibold text-slate-600">Detalle del activo seleccionado</span>
-                <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-blue-700">
+                <span className="rounded-full bg-destructive/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-destructive">
                   Resumen
                 </span>
               </div>
@@ -292,7 +274,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                         value={item}
                         checked={watch("TipoBien") === item}
                         onChange={(e) => setValue("TipoBien", e.target.value)}
-                        className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="h-4 w-4 border-slate-300 text-destructive focus:ring-destructive"
                       />
                       {item}
                     </label>
@@ -317,8 +299,9 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                             "IdCondicion",
                             String(CONDICION_OPTIONS.indexOf(item) + 1)
                           );
+                          handleSelectField("IdEstadoBien", "");
                         }}
-                        className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="h-4 w-4 border-slate-300 text-destructive focus:ring-destructive"
                       />
                       {item}
                     </label>
@@ -328,21 +311,30 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
               <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
                 <p className="mb-2 text-sm font-semibold text-foreground">Estado del Bien</p>
                 <div className="space-y-2">
-                  {ESTADO_OPTIONS.map((item, idx) => (
-                    <label key={item} className="flex items-center gap-2 text-sm text-foreground">
-                      <input
-                        type="radio"
-                        name="estadoBien"
-                        value={String(idx + 1)}
-                        checked={
-                          String(watch("IdEstadoBien") ?? formData.IdEstadoBien) === String(idx + 1)
-                        }
-                        onChange={(e) => handleSelectField("IdEstadoBien", e.target.value)}
-                        className="h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      {item}
-                    </label>
-                  ))}
+                  {(String(watch("IdCondicion") ?? formData.IdCondicion) === "1"
+                    ? ESTADO_OPTIONS.slice(0, 2)
+                    : String(watch("IdCondicion") ?? formData.IdCondicion) === "2"
+                      ? ESTADO_OPTIONS.slice(2)
+                      : []
+                  ).map((item) => {
+                    const estadoId = ESTADO_OPTIONS.indexOf(item) + 1;
+                    return (
+                      <label key={item} className="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="radio"
+                          name="estadoBien"
+                          value={String(estadoId)}
+                          checked={String(watch("IdEstadoBien") ?? formData.IdEstadoBien) === String(estadoId)}
+                          onChange={(e) => handleSelectField("IdEstadoBien", e.target.value)}
+                          className="h-4 w-4 border-slate-300 text-destructive focus:ring-destructive"
+                        />
+                        {item}
+                      </label>
+                    );
+                  })}
+                  {!watch("IdCondicion") && !formData.IdCondicion ? (
+                    <p className="text-xs text-muted-foreground">Seleccione primero la condición del bien.</p>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -358,21 +350,12 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-1.5 text-sm text-foreground md:col-span-2">
                 <span className="font-medium">Causal de Baja</span>
-                <Select
+                <SearchableSelect
                   value={formData.CausalBaja || watch("CausalBaja") || ""}
                   onValueChange={(val) => handleSelectField("CausalBaja", val ?? "")}
-                >
-                  <SelectTrigger className="h-11 rounded-xl border-border bg-muted/30 shadow-sm">
-                    <SelectValue placeholder="Seleccione causal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CAUSAL_BAJA_OPTIONS.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={CAUSAL_BAJA_OPTIONS.map((item) => ({ value: item, label: item }))}
+                  placeholder="Seleccione o busque causal"
+                />
               </label>
               <label className="space-y-1.5 text-sm text-foreground md:col-span-2">
                 <span className="font-medium">Fundamentación</span>
@@ -384,21 +367,12 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
               </label>
               <label className="space-y-1.5 text-sm text-foreground md:col-span-2">
                 <span className="font-medium">Recomendación</span>
-                <Select
+                <SearchableSelect
                   value={formData.Recomendacion || watch("Recomendacion") || ""}
                   onValueChange={(val) => handleSelectField("Recomendacion", val ?? "")}
-                >
-                  <SelectTrigger className="h-11 rounded-xl border-border bg-muted/30 shadow-sm">
-                    <SelectValue placeholder="Seleccione recomendación" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RECOMENDACION_OPTIONS.map((item) => (
-                      <SelectItem key={item} value={item}>
-                        {item}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  options={RECOMENDACION_OPTIONS.map((item) => ({ value: item, label: item }))}
+                  placeholder="Seleccione o busque recomendación"
+                />
               </label>
             </div>
           </section>

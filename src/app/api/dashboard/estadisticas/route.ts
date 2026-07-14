@@ -16,7 +16,13 @@ export async function GET(request: Request) {
           (SELECT COUNT(*) FROM SoporteTecnico WHERE EstadoTicket = 'Pendiente') AS totalSoportePendiente,
           (SELECT COUNT(*) FROM SoporteTecnico WHERE EstadoTicket = 'En Proceso') AS totalSoporteProceso,
           (SELECT COUNT(*) FROM SoporteTecnico WHERE EstadoTicket = 'Atendido') AS totalSoporteAtendido,
-          (SELECT COUNT(*) FROM SoporteTecnico WHERE EstadoTicket = 'Derivado') AS totalSoporteDerivado
+          (SELECT COUNT(*) FROM SoporteTecnico WHERE EstadoTicket = 'Derivado') AS totalSoporteDerivado,
+          (SELECT COUNT(*) FROM SoporteTecnico WHERE UPPER(LTRIM(RTRIM(ISNULL(EstadoAprobacion, '')))) = 'PENDIENTE')
+            + (SELECT COUNT(*) FROM BajasBienes WHERE UPPER(LTRIM(RTRIM(ISNULL(EstadoAprobacion, '')))) = 'PENDIENTE') AS totalFichasPendientes,
+          (SELECT COUNT(*) FROM SoporteTecnico WHERE UPPER(LTRIM(RTRIM(ISNULL(EstadoAprobacion, '')))) IN ('APROBADA', 'ACEPTADA'))
+            + (SELECT COUNT(*) FROM BajasBienes WHERE UPPER(LTRIM(RTRIM(ISNULL(EstadoAprobacion, '')))) IN ('APROBADA', 'ACEPTADA')) AS totalFichasAceptadas,
+          (SELECT COUNT(*) FROM SoporteTecnico WHERE UPPER(LTRIM(RTRIM(ISNULL(EstadoAprobacion, '')))) IN ('RECHAZADA', 'RECHAZADO'))
+            + (SELECT COUNT(*) FROM BajasBienes WHERE UPPER(LTRIM(RTRIM(ISNULL(EstadoAprobacion, '')))) IN ('RECHAZADA', 'RECHAZADO')) AS totalFichasRechazadas
       `).catch(() => ({ recordset: [{}] })),
       executeQuery(`
         SELECT 
@@ -58,7 +64,7 @@ export async function GET(request: Request) {
           isActive(row.Activo) || String(row.Estado_EstadoBien || "").toLowerCase().includes("operativ")
       ).length ?? 0;
 
-    const totalBienes = totalBienesOperativos;
+    const totalBienes = bienesResult.recordset?.length ?? 0;
     const totalBienesInoperativos = (bienesResult.recordset?.length ?? 0) - totalBienesOperativos;
 
     const totalComponentes = (componentesResult.recordset || []).filter((r: any) => isActive(r.Activo)).length ?? 0;
@@ -100,6 +106,9 @@ export async function GET(request: Request) {
         totalSoporteProceso: counts.totalSoporteProceso || 0,
         totalSoporteAtendido: counts.totalSoporteAtendido || 0,
         totalSoporteDerivado: counts.totalSoporteDerivado || 0,
+        totalFichasPendientes: counts.totalFichasPendientes || 0,
+        totalFichasAceptadas: counts.totalFichasAceptadas || 0,
+        totalFichasRechazadas: counts.totalFichasRechazadas || 0,
       },
       fichasPorArea,
       soportePorMes,
@@ -121,6 +130,9 @@ export async function GET(request: Request) {
         totalSoporteProceso: 0,
         totalSoporteAtendido: 0,
         totalSoporteDerivado: 0,
+        totalFichasPendientes: 0,
+        totalFichasAceptadas: 0,
+        totalFichasRechazadas: 0,
       },
       fichasPorArea: {},
       soportePorMes: [],

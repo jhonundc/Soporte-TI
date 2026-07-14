@@ -13,14 +13,8 @@ import { FormDialogContent } from "@/components/forms/FormDialogContent";
 import { FormDialogFooter } from "@/components/forms/FormField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useEffect } from "react";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import { getMarcas, getAreas, getCondiciones, getEstados, getCategorias } from "@/app/actions/catalogs";
 import { notify } from "@/lib/feedback/toast";
 import { queryKeys } from "@/lib/query-keys";
@@ -41,24 +35,12 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
     resolver: zodResolver(bienFormSchema),
   });
 
-  const selectedMarca = watch("IdMarca");
-  const selectedCategoria = watch("IdCategoria");
-
   // Consultas para llenar los combos (Server Actions + React Query)
   const { data: marcas } = useQuery({ queryKey: queryKeys.catalogs.marcas, queryFn: () => getMarcas() });
   const { data: areas } = useQuery({ queryKey: queryKeys.catalogs.areas, queryFn: () => getAreas() });
   const { data: condiciones } = useQuery({ queryKey: queryKeys.catalogs.condiciones, queryFn: () => getCondiciones() });
   const { data: estados } = useQuery({ queryKey: queryKeys.catalogs.estados, queryFn: () => getEstados() });
   const { data: categorias } = useQuery({ queryKey: queryKeys.catalogs.categorias, queryFn: () => getCategorias() });
-
-  const selectedArea = watch("IdArea");
-  const selectedCondicion = watch("IdCondicion");
-  const selectedEstado = watch("IdEstadoBien");
-  const selectedCatName = categorias?.find((c: any) => String(c.IdCategoria) === String(selectedCategoria))?.CategoriaBien;
-  const selectedAreaName = areas?.find((a: any) => String(a.IdArea) === String(selectedArea))?.NombreArea;
-  const selectedMarcaName = marcas?.find((m: any) => String(m.IdMarca) === String(selectedMarca))?.Marca;
-  const selectedCondicionName = condiciones?.find((c: any) => String(c.IdCondicion) === String(selectedCondicion))?.Condicion;
-  const selectedEstadoName = estados?.find((e: any) => String(e.IdEstadoBien) === String(selectedEstado))?.EstadoBien;
 
   // Llenar formulario al editar
   useEffect(() => {
@@ -129,13 +111,14 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <FormDialogContent size="lg" className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <FormDialogContent size="lg" className="max-h-[92vh] overflow-y-auto p-0 sm:max-w-3xl">
+        <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Inventario institucional</p>
           <DialogTitle>
             {readOnly ? "Detalle del Bien" : bien ? "Editar Bien" : "Registrar Nuevo Bien"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-2 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 bg-primary/[0.025] px-6 py-6 [&_input]:rounded-xl [&_label]:font-semibold [&_label]:text-primary [&_[data-slot=select-trigger]]:rounded-xl">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Cód. Inventario</label>
@@ -159,39 +142,25 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-foreground">Categoría</label>
               </div>
-              <Select 
+              <SearchableSelect
                 value={watch("IdCategoria") ? String(watch("IdCategoria")) : ""} 
                 onValueChange={(val) => setValue("IdCategoria", val as any)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar">{selectedCatName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {categorias?.map((c: any) => (
-                    <SelectItem key={c.IdCategoria} value={c.IdCategoria.toString()}>{c.CategoriaBien}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(categorias ?? []).map((c: any) => ({ value: String(c.IdCategoria), label: String(c.CategoriaBien) }))}
+                placeholder="Seleccione o busque categoría"
+              />
             </div>
             <div className="space-y-1">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-foreground">Área</label>
               </div>
-              <Select 
+              <SearchableSelect
                 value={watch("IdArea") ? String(watch("IdArea")) : ""} 
                 onValueChange={(val) => setValue("IdArea", val as any)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar">{selectedAreaName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {areas?.map((a: any) => (
-                    <SelectItem key={a.IdArea} value={a.IdArea.toString()}>{a.NombreArea}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(areas ?? []).map((a: any) => ({ value: String(a.IdArea), label: String(a.NombreArea) }))}
+                placeholder="Seleccione o busque área"
+              />
             </div>
           </div>
 
@@ -200,20 +169,13 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-foreground">Marca</label>
               </div>
-              <Select 
+              <SearchableSelect
                 value={watch("IdMarca") ? String(watch("IdMarca")) : ""} 
                 onValueChange={(val) => setValue("IdMarca", val as any)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar">{selectedMarcaName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {marcas?.map((m: any) => (
-                    <SelectItem key={m.IdMarca} value={m.IdMarca.toString()}>{m.Marca}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(marcas ?? []).map((m: any) => ({ value: String(m.IdMarca), label: String(m.Marca) }))}
+                placeholder="Seleccione o busque marca"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Modelo</label>
@@ -237,37 +199,23 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-foreground">Condición</label>
               </div>
-              <Select 
+              <SearchableSelect
                 value={watch("IdCondicion") ? String(watch("IdCondicion")) : ""} 
                 onValueChange={(val) => setValue("IdCondicion", val as any)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar">{selectedCondicionName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {condiciones?.map((c: any) => (
-                    <SelectItem key={c.IdCondicion} value={c.IdCondicion.toString()}>{c.Condicion}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(condiciones ?? []).map((c: any) => ({ value: String(c.IdCondicion), label: String(c.Condicion) }))}
+                placeholder="Seleccione o busque condición"
+              />
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Estado</label>
-              <Select 
+              <SearchableSelect
                 value={watch("IdEstadoBien") ? String(watch("IdEstadoBien")) : ""} 
                 onValueChange={(val) => setValue("IdEstadoBien", val as any)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar">{selectedEstadoName}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {estados?.map((e: any) => (
-                    <SelectItem key={e.IdEstadoBien} value={e.IdEstadoBien.toString()}>{e.EstadoBien}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={(estados ?? []).map((e: any) => ({ value: String(e.IdEstadoBien), label: String(e.EstadoBien) }))}
+                placeholder="Seleccione o busque estado"
+              />
             </div>
           </div>
 
@@ -278,8 +226,8 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
               loading={mutation.isPending}
             />
           ) : (
-            <div className="flex justify-end border-t border-border pt-4">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <div className="flex justify-end border-t border-primary/10 pt-4">
+              <Button type="button" variant="outline" className="rounded-xl" onClick={() => onOpenChange(false)}>
                 Cerrar
               </Button>
             </div>

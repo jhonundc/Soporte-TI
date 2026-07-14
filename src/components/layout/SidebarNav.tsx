@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
+  Gauge,
   Boxes,
   Network,
-  Ticket,
-  Bell,
-  BarChart,
-  Users,
-  Settings,
+  Headset,
+  BellRing,
+  ChartNoAxesCombined,
+  UsersRound,
+  Settings2,
   ChevronLeft,
   LogOut,
+  Search,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,7 +30,7 @@ export type SidebarMenuItem = {
 };
 
 const adminMenuItems: SidebarMenuItem[] = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+  { icon: Gauge, label: "Dashboard", href: "/" },
   {
     icon: Boxes,
     label: "Inventario",
@@ -41,7 +43,7 @@ const adminMenuItems: SidebarMenuItem[] = [
   },
   { icon: Network, label: "Redes", href: "/redes" },
   {
-    icon: Ticket,
+    icon: Headset,
     label: "Soporte",
     href: "/soporte",
     subItems: [
@@ -51,7 +53,7 @@ const adminMenuItems: SidebarMenuItem[] = [
     ],
   },
   {
-    icon: Bell,
+    icon: BellRing,
     label: "Centro de Notificaciones",
     href: "/centro-notificaciones",
     subItems: [
@@ -60,12 +62,12 @@ const adminMenuItems: SidebarMenuItem[] = [
     ],
   },
   {
-    icon: Users,
+    icon: UsersRound,
     label: "Usuarios",
     href: "/usuarios",
   },
   {
-    icon: Settings,
+    icon: Settings2,
     label: "Configuración",
     href: "/configuracion",
     subItems: [
@@ -83,7 +85,7 @@ const adminMenuItems: SidebarMenuItem[] = [
     ],
   },
   {
-    icon: BarChart,
+    icon: ChartNoAxesCombined,
     label: "Reportes",
     href: "/reportes/inventario",
     subItems: [
@@ -94,7 +96,7 @@ const adminMenuItems: SidebarMenuItem[] = [
 ];
 
 const supportMenuItems: SidebarMenuItem[] = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/" },
+  { icon: Gauge, label: "Dashboard", href: "/" },
   {
     icon: Boxes,
     label: "Inventario",
@@ -107,7 +109,7 @@ const supportMenuItems: SidebarMenuItem[] = [
   },
   { icon: Network, label: "Redes", href: "/redes" },
   {
-    icon: Ticket,
+    icon: Headset,
     label: "Soporte",
     href: "/soporte",
     subItems: [
@@ -117,7 +119,7 @@ const supportMenuItems: SidebarMenuItem[] = [
     ],
   },
   {
-    icon: Bell,
+    icon: BellRing,
     label: "Centro de Notificaciones",
     href: "/centro-notificaciones",
     subItems: [
@@ -126,7 +128,7 @@ const supportMenuItems: SidebarMenuItem[] = [
     ],
   },
   {
-    icon: BarChart,
+    icon: ChartNoAxesCombined,
     label: "Reportes",
     href: "/reportes/inventario",
     subItems: [
@@ -145,10 +147,10 @@ interface SidebarNavProps {
 
 const navItemClass = (active: boolean) =>
   cn(
-    "group flex w-full items-center rounded-lg px-3 py-2.5 text-[0.9375rem] font-medium leading-snug transition-all duration-150",
+    "group flex w-full items-center rounded-xl px-3 py-2.5 text-[0.9375rem] font-medium leading-snug transition-all duration-200",
     active
-      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-[var(--shadow-soft)]"
-      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md ring-1 ring-white/10"
+      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
   );
 
 export function SidebarNav({
@@ -160,6 +162,7 @@ export function SidebarNav({
   const pathname = usePathname();
   const [openSubMenus, setOpenSubMenus] = useState<string[]>([]);
   const [menuItems, setMenuItems] = useState(adminMenuItems);
+  const [menuSearch, setMenuSearch] = useState("");
 
   const { data: sessionData } = useSession();
 
@@ -186,6 +189,22 @@ export function SidebarNav({
     );
   };
 
+  const normalizedSearch = menuSearch.trim().toLocaleLowerCase();
+  const visibleMenuItems = useMemo(() => {
+    if (!normalizedSearch) return menuItems;
+
+    return menuItems.flatMap((item) => {
+      const parentMatches = item.label.toLocaleLowerCase().includes(normalizedSearch);
+      const matchingSubItems = item.subItems?.filter((subItem) =>
+        subItem.label.toLocaleLowerCase().includes(normalizedSearch)
+      );
+
+      if (!parentMatches && !matchingSubItems?.length) return [];
+
+      return [{ ...item, subItems: parentMatches ? item.subItems : matchingSubItems }];
+    });
+  }, [menuItems, normalizedSearch]);
+
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
@@ -193,10 +212,54 @@ export function SidebarNav({
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2.5 py-4">
-        {menuItems.map((item) => {
+      <div className="border-b border-sidebar-border/80 px-3 py-3">
+        {collapsed ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="mx-auto flex text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onClick={onExpandRequest}
+            aria-label="Buscar en el menú"
+            title="Buscar en el menú"
+          >
+            <Search className="size-4" aria-hidden="true" />
+          </Button>
+        ) : (
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-sidebar-muted" aria-hidden="true" />
+            <input
+              type="search"
+              value={menuSearch}
+              onChange={(event) => setMenuSearch(event.target.value)}
+              placeholder="Buscar en el menú..."
+              className="h-10 w-full rounded-xl border border-sidebar-border bg-sidebar-accent/55 py-2 pl-9 pr-9 text-sm text-sidebar-foreground outline-none transition-colors placeholder:text-sidebar-muted focus:border-sidebar-ring focus:bg-sidebar-accent focus:ring-2 focus:ring-sidebar-ring/30"
+              aria-label="Buscar en el menú"
+            />
+            {menuSearch ? (
+              <button
+                type="button"
+                onClick={() => setMenuSearch("")}
+                className="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-sidebar-muted transition-colors hover:bg-sidebar-border hover:text-sidebar-foreground"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="size-3.5" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
+        {!collapsed ? (
+          <p className="px-3 pb-2 pt-1 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-sidebar-muted">
+            Navegación
+          </p>
+        ) : null}
+        {visibleMenuItems.map((item) => {
           const hasSubItems = !!item.subItems;
           const isSubMenuOpen = openSubMenus.includes(item.label);
+          const showSubMenu = isSubMenuOpen || Boolean(normalizedSearch);
           const isActive =
             pathname === item.href ||
             item.subItems?.some((sub) => pathname === sub.href);
@@ -214,17 +277,17 @@ export function SidebarNav({
                     }
                     toggleSubMenu(item.label);
                   }}
-                  className={cn(navItemClass(Boolean(isActive && !isSubMenuOpen)), "justify-between")}
+                  className={cn(navItemClass(Boolean(isActive && !showSubMenu)), "justify-between")}
                 >
                   <div className="flex min-w-0 items-center">
-                    <item.icon className="size-5 shrink-0" aria-hidden="true" />
+                    <item.icon className="size-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
                     {!collapsed ? <span className="ml-3 truncate">{item.label}</span> : null}
                   </div>
                   {!collapsed ? (
                     <ChevronLeft
                       className={cn(
                         "size-4 shrink-0 transition-transform duration-200 ease-out",
-                        isSubMenuOpen && "-rotate-90"
+                        showSubMenu && "-rotate-90"
                       )}
                       aria-hidden="true"
                     />
@@ -237,7 +300,7 @@ export function SidebarNav({
                   className={navItemClass(Boolean(isActive))}
                   title={collapsed ? item.label : undefined}
                 >
-                  <item.icon className="size-5 shrink-0" aria-hidden="true" />
+                  <item.icon className="size-5 shrink-0" strokeWidth={1.8} aria-hidden="true" />
                   {!collapsed ? <span className="ml-3 truncate">{item.label}</span> : null}
                 </Link>
               )}
@@ -246,11 +309,11 @@ export function SidebarNav({
                 <div
                   className={cn(
                     "grid transition-[grid-template-rows] duration-200 ease-out",
-                    isSubMenuOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                    showSubMenu ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
                   )}
                 >
                   <div className="overflow-hidden">
-                    <div className="ml-4 space-y-0.5 border-l border-sidebar-border pl-3 pt-0.5">
+                    <div className="ml-5 space-y-0.5 border-l border-sidebar-primary/30 pl-3 pt-1">
                       {item.subItems!.map((subItem) => {
                         const isSubActive = pathname === subItem.href;
                         return (
@@ -259,10 +322,10 @@ export function SidebarNav({
                             href={subItem.href}
                             onClick={onNavigate}
                             className={cn(
-                              "block rounded-md px-2.5 py-2 text-[0.875rem] leading-snug transition-colors duration-150",
+                              "block rounded-lg px-2.5 py-2 text-[0.875rem] leading-snug transition-colors duration-150",
                               isSubActive
-                                ? "font-semibold text-sidebar-primary"
-                                : "text-sidebar-foreground/65 hover:text-sidebar-accent-foreground"
+                                ? "bg-sidebar-primary/15 font-semibold text-sidebar-primary"
+                                : "text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                             )}
                           >
                             {subItem.label}
@@ -276,14 +339,19 @@ export function SidebarNav({
             </div>
           );
         })}
+        {!visibleMenuItems.length && !collapsed ? (
+          <div className="mx-1 rounded-xl border border-sidebar-border bg-sidebar-accent/40 px-3 py-5 text-center text-sm text-sidebar-muted">
+            No se encontraron opciones.
+          </div>
+        ) : null}
       </nav>
 
-      <div className="border-t border-sidebar-border p-2.5">
+      <div className="border-t border-sidebar-border/80 p-3">
         <Button
           type="button"
           variant="ghost"
           onClick={handleLogout}
-          className="h-auto w-full justify-start px-3 py-2.5 text-[0.9375rem] font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          className="h-auto w-full justify-start rounded-xl px-3 py-2.5 text-[0.9375rem] font-medium text-sidebar-foreground/80 hover:bg-destructive/15 hover:text-red-300"
         >
           <LogOut className="size-5 shrink-0" aria-hidden="true" />
           {!collapsed ? <span className="ml-3">Cerrar sesión</span> : null}

@@ -105,7 +105,7 @@ export function SearchableSelect({
     <div ref={containerRef} className={cn("relative w-full", className)}>
       <div
         className={cn(
-          "flex h-8 w-full items-center gap-1 rounded-lg border border-input bg-transparent px-2 shadow-xs transition-colors",
+          "flex h-9 w-full items-center gap-1 rounded-lg border border-input bg-transparent px-2 shadow-xs transition-colors",
           "focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50",
           disabled && "cursor-not-allowed opacity-50"
         )}
@@ -131,7 +131,7 @@ export function SearchableSelect({
           onFocus={() => {
             if (disabled) return;
             setOpen(true);
-            setQuery(value);
+            setQuery(selectedLabel || value);
             wasFocusedRef.current = true;
           }}
           onBlur={() => {

@@ -41,7 +41,7 @@ export function BajaPageView() {
   const [selectedBajaForPrint, setSelectedBajaForPrint] = useState<BajaRecord | null>(null);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-8 px-4 py-6 lg:px-8">
       <PageHeader
         title="Fichas de Baja de Bienes"
         description="Gestiona la baja de bienes y equipos."
@@ -53,34 +53,49 @@ export function BajaPageView() {
         }
       />
 
-      <BajaList
-        bajas={displayBajas}
-        isLoading={isLoading}
-        error={error}
-        buscarText={buscarText}
-        onBuscarChange={setBuscarText}
-        filterArea={filterArea}
-        onFilterAreaChange={setFilterArea}
-        filterCondicion={filterCondicion}
-        onFilterCondicionChange={setFilterCondicion}
-        filterEstado={filterEstado}
-        onFilterEstadoChange={setFilterEstado}
-        activeFilterCount={activeFilterCount}
-        onClearFilters={clearFilters}
-        areas={catalogs.areas}
-        condiciones={catalogs.condiciones}
-        estados={catalogs.estados}
-        onView={(baja) => {
-          setViewingBaja(baja);
-          setDetailOpen(true);
-        }}
-        onEdit={form.handleEdit}
-        onDelete={handleDelete}
-        onPrint={(baja) => {
-          setSelectedBajaForPrint(baja);
-          setPrintActionOpen(true);
-        }}
-      />
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-4 border-b border-destructive/10 bg-gradient-to-r from-destructive/10 via-destructive/5 to-card px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-destructive">Gestión patrimonial</p>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Registro de fichas de baja</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Consulta, filtra y gestiona las solicitudes de baja registradas.</p>
+          </div>
+          <div className="rounded-xl border border-destructive/15 bg-card/80 px-4 py-3 text-sm shadow-sm">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resultados</p>
+            <p className="mt-1 text-2xl font-semibold text-destructive">{displayBajas.length}</p>
+          </div>
+        </div>
+        <div className="p-4 sm:p-6">
+          <BajaList
+            bajas={displayBajas}
+            isLoading={isLoading}
+            error={error}
+            buscarText={buscarText}
+            onBuscarChange={setBuscarText}
+            filterArea={filterArea}
+            onFilterAreaChange={setFilterArea}
+            filterCondicion={filterCondicion}
+            onFilterCondicionChange={setFilterCondicion}
+            filterEstado={filterEstado}
+            onFilterEstadoChange={setFilterEstado}
+            activeFilterCount={activeFilterCount}
+            onClearFilters={clearFilters}
+            areas={catalogs.areas}
+            condiciones={catalogs.condiciones}
+            estados={catalogs.estados}
+            onView={(baja) => {
+              setViewingBaja(baja);
+              setDetailOpen(true);
+            }}
+            onEdit={form.handleEdit}
+            onDelete={handleDelete}
+            onPrint={(baja) => {
+              setSelectedBajaForPrint(baja);
+              setPrintActionOpen(true);
+            }}
+          />
+        </div>
+      </section>
 
       <BajaFormDialog form={form} />
 

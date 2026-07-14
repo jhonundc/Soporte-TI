@@ -1,18 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, Check, XCircle } from "lucide-react";
+import { BellRing, Check, CircleCheckBig, Clock3, Eye, XCircle } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { notificacionService, type NotificacionRecord } from "@/services/notificacion.service";
-import { fichaService, type FichaSoporteRecord } from "@/services/ficha.service";
+import { fichaService } from "@/services/ficha.service";
 import { notify } from "@/lib/feedback/toast";
 import { fetchSessionClient } from "@/lib/auth/session-client";
 import { queryKeys } from "@/lib/query-keys";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -20,15 +19,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
 
 export default function CentroNotificacionesFichasSoportePage() {
   const [selectedNotificacion, setSelectedNotificacion] = useState<NotificacionRecord | null>(null);
   const [selectedFichaId, setSelectedFichaId] = useState<number | null>(null);
-  const [selectedNotificacionId, setSelectedNotificacionId] = useState<number | null>(null);
+  const [notificationToReject, setNotificationToReject] = useState<NotificacionRecord | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectError, setRejectError] = useState("");
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [codeFilter, setCodeFilter] = useState("");
+  const [approvalFilter, setApprovalFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const queryClient = useQueryClient();
   const sessionQuery = useQuery({
@@ -37,7 +42,7 @@ export default function CentroNotificacionesFichasSoportePage() {
   });
 
   const userRole = String(sessionQuery.data?.user?.role || "");
-  const isAdmin = /administrador/i.test(userRole);
+  const isAdmin = userRole.trim().toLowerCase() === "admin";
   const queryKey = ["notificaciones", "soporte"] as const;
 
   const { data: notificaciones = [], isLoading, error } = useQuery({
@@ -54,8 +59,63 @@ export default function CentroNotificacionesFichasSoportePage() {
     enabled: selectedFichaId !== null,
   });
 
+  const filteredNotifications = useMemo(() => {
+    const code = codeFilter.trim().toLowerCase();
+    const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+    const to = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null;
+
+    return notificaciones.filter((notification) => {
+      const searchable = `${notification.Titulo || ""} ${notification.Mensaje || ""} ${notification.IdReferencia}`.toLowerCase();
+      if (code && !searchable.includes(code)) return false;
+      if (approvalFilter && notification.EstadoAprobacion.trim().toUpperCase() !== approvalFilter) return false;
+
+      if (!from && !to) return true;
+      const createdAt = notification.FechaCreacion ? new Date(String(notification.FechaCreacion)) : null;
+      if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+      return (!from || createdAt >= from) && (!to || createdAt <= to);
+    });
+  }, [approvalFilter, codeFilter, dateFrom, dateTo, notificaciones]);
+
+  const pendingCount = filteredNotifications.filter(
+    (notification) => notification.EstadoAprobacion.trim().toUpperCase() === "PENDIENTE"
+  ).length;
+  const approvedCount = filteredNotifications.filter(
+    (notification) => notification.EstadoAprobacion.trim().toUpperCase() === "APROBADA"
+  ).length;
+  const rejectedCount = filteredNotifications.filter(
+    (notification) => notification.EstadoAprobacion.trim().toUpperCase() === "RECHAZADA"
+  ).length;
+
+  const getApprovalBadgeClass = (status: string) => {
+    const normalized = status.trim().toUpperCase();
+    if (normalized === "APROBADA") return "bg-success/10 text-success ring-success/20";
+    if (normalized === "RECHAZADA") return "bg-destructive/10 text-destructive ring-destructive/20";
+    return "bg-warning/10 text-warning ring-warning/20";
+  };
+
+  useEffect(() => {
+    const notificationId = Number(new URLSearchParams(window.location.search).get("notificacion"));
+    if (!Number.isSafeInteger(notificationId) || notificationId <= 0) return;
+
+    const notification = notificaciones.find(
+      (item) => item.IdNotificacion === notificationId
+    );
+    if (!notification) return;
+
+    const timer = window.setTimeout(() => {
+      setSelectedNotificacion(notification);
+      setSelectedFichaId(notification.IdReferencia);
+
+      const url = new URL(window.location.href);
+      url.searchParams.delete("notificacion");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [notificaciones]);
+
   const cargarNotificaciones = () => {
-    queryClient.invalidateQueries({ queryKey });
+    queryClient.invalidateQueries({ queryKey: ["notificaciones"] });
   };
 
   const aprobarNotificacion = async (IdNotificacion: number) => {
@@ -75,7 +135,7 @@ export default function CentroNotificacionesFichasSoportePage() {
 
     const result = await response.json();
     if (!response.ok) {
-      notify.error(result.Mensaje || result.message || "No se pudo aprobar la ficha");
+      notify.error(result.error || result.Mensaje || result.message || "No se pudo aprobar la ficha");
       return;
     }
 
@@ -84,8 +144,7 @@ export default function CentroNotificacionesFichasSoportePage() {
   };
 
   const abrirModalRechazo = (notification: NotificacionRecord) => {
-    setSelectedNotificacion(notification);
-    setSelectedNotificacionId(notification.IdNotificacion);
+    setNotificationToReject(notification);
     setRejectReason("");
     setRejectError("");
     setRejectDialogOpen(true);
@@ -97,7 +156,7 @@ export default function CentroNotificacionesFichasSoportePage() {
       return;
     }
 
-    if (!selectedNotificacionId) {
+    if (!notificationToReject) {
       notify.error("No se ha seleccionado una notificación para rechazar.");
       return;
     }
@@ -109,49 +168,112 @@ export default function CentroNotificacionesFichasSoportePage() {
       },
       body: JSON.stringify({
         Accion: "X",
-        IdNotificacion: selectedNotificacionId,
+        IdNotificacion: notificationToReject.IdNotificacion,
         ObservacionAdministrador: rejectReason.trim(),
       }),
     });
 
     const result = await response.json();
     if (!response.ok) {
-      notify.error(result.Mensaje || result.message || "No se pudo rechazar la ficha");
+      notify.error(result.error || result.Mensaje || result.message || "No se pudo rechazar la ficha");
       return;
     }
 
     notify.success(result.Mensaje || "Ficha rechazada correctamente");
     setRejectDialogOpen(false);
+    setNotificationToReject(null);
     setRejectReason("");
     setRejectError("");
     cargarNotificaciones();
   };
 
   return (
-    <main className="space-y-6 px-4 py-6 lg:px-8">
-      <PageHeader title="Centro de Notificaciones" />
-      <section className="rounded-lg border border-border bg-card p-6 space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <main className="space-y-8 px-4 py-6 lg:px-8">
+      <PageHeader
+        title="Centro de Notificaciones"
+        description="Revisa y gestiona las solicitudes enviadas por el equipo de soporte."
+      />
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-5 border-b border-primary/10 bg-gradient-to-br from-primary/10 via-card to-card px-6 py-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Fichas Soporte</h2>
+            <div className="mb-2 flex items-center gap-2 text-primary">
+              <BellRing className="size-5" />
+              <span className="text-xs font-bold uppercase tracking-[0.16em]">Bandeja de revisión</span>
+            </div>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Fichas de soporte</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Lista de notificaciones de soporte de tipo SOPORTE.
+              {isAdmin
+                ? "Solicitudes de soporte pendientes de aprobación."
+                : "Consulta el estado de las fichas de soporte que registraste."}
             </p>
+          </div>
+          <div className="rounded-xl border border-primary/15 bg-card/80 px-4 py-3 text-sm shadow-sm backdrop-blur">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Solicitudes</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{filteredNotifications.length}</p>
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="min-w-full border-collapse text-left text-sm text-muted-foreground">
-            <thead className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wide text-foreground">
+        <div className="grid gap-3 border-b border-border bg-muted/20 px-6 py-4 sm:grid-cols-3">
+          <div className="flex items-center gap-3 rounded-xl border border-warning/15 bg-warning/5 px-4 py-3">
+            <Clock3 className="size-5 text-warning" />
+            <div><p className="text-xs text-muted-foreground">Pendientes</p><p className="font-semibold text-foreground">{pendingCount}</p></div>
+          </div>
+          <div className="flex items-center gap-3 rounded-xl border border-success/15 bg-success/5 px-4 py-3">
+            <CircleCheckBig className="size-5 text-success" />
+            <div><p className="text-xs text-muted-foreground">Aprobadas</p><p className="font-semibold text-foreground">{approvedCount}</p></div>
+          </div>
+          <div className="flex items-center gap-3 rounded-xl border border-destructive/15 bg-destructive/5 px-4 py-3">
+            <XCircle className="size-5 text-destructive" />
+            <div><p className="text-xs text-muted-foreground">Rechazadas</p><p className="font-semibold text-foreground">{rejectedCount}</p></div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 border-b border-border bg-card px-6 py-4 lg:grid-cols-[minmax(0,1fr)_180px_180px_190px_auto] lg:items-end">
+          <label className="grid gap-1.5 text-xs font-semibold text-foreground">
+            Buscar por código de ficha
+            <Input value={codeFilter} onChange={(event) => setCodeFilter(event.target.value)} placeholder="Ej. ST-20260714-5581" />
+          </label>
+          <label className="grid gap-1.5 text-xs font-semibold text-foreground">
+            Desde
+            <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+          </label>
+          <label className="grid gap-1.5 text-xs font-semibold text-foreground">
+            Hasta
+            <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+          </label>
+          <label className="grid gap-1.5 text-xs font-semibold text-foreground">
+            Estado de aprobación
+            <SearchableSelect
+              value={approvalFilter}
+              onValueChange={setApprovalFilter}
+              options={[
+                { value: "PENDIENTE", label: "Pendiente" },
+                { value: "APROBADA", label: "Aprobada" },
+                { value: "RECHAZADA", label: "Rechazada" },
+              ]}
+              placeholder="Seleccione o busque estado"
+            />
+          </label>
+          <Button variant="outline" className="lg:mb-0" disabled={!codeFilter && !approvalFilter && !dateFrom && !dateTo} onClick={() => { setCodeFilter(""); setApprovalFilter(""); setDateFrom(""); setDateTo(""); }}>
+            Limpiar filtros
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto p-4 sm:p-6">
+          <div className="rounded-xl border border-border bg-card">
+          <table className="min-w-[1220px] border-collapse text-left text-[13px] text-muted-foreground">
+            <thead className="bg-muted/70 text-xs font-semibold uppercase tracking-wide text-foreground">
               <tr>
-                <th className="whitespace-nowrap px-4 py-3.5">IdNotificacion</th>
-                <th className="whitespace-nowrap px-4 py-3.5">IdReferencia</th>
+                <th className="whitespace-nowrap px-4 py-3.5">Registrado por</th>
                 <th className="whitespace-nowrap px-4 py-3.5">Título</th>
                 <th className="whitespace-nowrap px-4 py-3.5">Mensaje</th>
                 <th className="whitespace-nowrap px-4 py-3.5">EstadoAprobación</th>
+                <th className="whitespace-nowrap px-4 py-3.5">Respondido por</th>
                 <th className="whitespace-nowrap px-4 py-3.5">Leído</th>
                 <th className="whitespace-nowrap px-4 py-3.5">FechaCreación</th>
-                <th className="whitespace-nowrap px-4 py-3.5 text-right">Acciones</th>
+                <th className="w-28 whitespace-nowrap px-4 py-4 text-right">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
@@ -171,23 +293,35 @@ export default function CentroNotificacionesFichasSoportePage() {
                     {(error as Error).message || "Error al cargar los datos."}
                   </td>
                 </tr>
-              ) : notificaciones.length === 0 ? (
+              ) : filteredNotifications.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-sm text-muted-foreground">
-                    No hay notificaciones de soporte disponibles.
+                    No hay notificaciones que coincidan con los filtros seleccionados.
                   </td>
                 </tr>
               ) : (
-                notificaciones.map((notification) => {
+                filteredNotifications.map((notification) => {
                   const isPending = String(notification.EstadoAprobacion || "").trim().toUpperCase() === "PENDIENTE";
                   return (
-                    <tr key={notification.IdNotificacion} className="transition-colors duration-150 hover:bg-muted/40">
-                      <td className="whitespace-nowrap px-4 py-3.5 text-foreground">{notification.IdNotificacion}</td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-foreground">{notification.IdReferencia}</td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-foreground">{notification.Titulo}</td>
-                      <td className="px-4 py-3.5 text-foreground">{notification.Mensaje || "-"}</td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-foreground">{notification.EstadoAprobacion}</td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-foreground">{notification.Leido ? "Sí" : "No"}</td>
+                    <tr key={notification.IdNotificacion} className="transition-colors duration-150 hover:bg-primary/[0.035]">
+                      <td className="whitespace-nowrap px-5 py-4 text-foreground">
+                        {notification.NombreUsuarioOrigen || "-"}
+                      </td>
+                      <td className="min-w-64 max-w-80 px-5 py-4 font-medium leading-5 text-foreground">{notification.Titulo}</td>
+                      <td className="min-w-80 max-w-md px-5 py-4 leading-5 text-foreground">{notification.Mensaje || "-"}</td>
+                      <td className="whitespace-nowrap px-5 py-4">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${getApprovalBadgeClass(notification.EstadoAprobacion)}`}>
+                          {notification.EstadoAprobacion}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-4 text-foreground">
+                        {notification.NombreUsuarioRespondio || (isPending ? "Pendiente" : "-")}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3.5">
+                        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${notification.Leido ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
+                          {notification.Leido ? "Sí" : "No"}
+                        </span>
+                      </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-foreground">
                         {notification.FechaCreacion
                           ? new Date(String(notification.FechaCreacion)).toLocaleString("es-PE", {
@@ -199,12 +333,12 @@ export default function CentroNotificacionesFichasSoportePage() {
                             })
                           : "-"}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3.5 text-right text-foreground">
-                        <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                      <td className="px-4 py-4 text-right text-foreground">
+                        <div className="ml-auto inline-flex flex-col items-end gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="gap-2 px-3"
+                            className="gap-1.5 px-2"
                             title="Visualizar"
                             aria-label="Visualizar notificación"
                             onClick={() => {
@@ -213,14 +347,14 @@ export default function CentroNotificacionesFichasSoportePage() {
                             }}
                           >
                             <Eye className="size-4" />
-                            <span>Visualizar</span>
+                            <span>Ver</span>
                           </Button>
                           {isAdmin && isPending ? (
                             <>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="gap-2 px-3 text-warning"
+                                className="gap-1.5 px-2 text-warning"
                                 title="Aprobar"
                                 aria-label="Aprobar notificación"
                                 onClick={() => aprobarNotificacion(notification.IdNotificacion)}
@@ -231,7 +365,7 @@ export default function CentroNotificacionesFichasSoportePage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="gap-2 px-3 text-destructive"
+                                className="gap-1.5 px-2 text-destructive"
                                 title="Rechazar"
                                 aria-label="Rechazar notificación"
                                 onClick={() => abrirModalRechazo(notification)}
@@ -249,6 +383,7 @@ export default function CentroNotificacionesFichasSoportePage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </section>
 
@@ -261,8 +396,8 @@ export default function CentroNotificacionesFichasSoportePage() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] sm:max-w-5xl gap-0 overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl">
+          <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
             <DialogTitle>Detalle de notificación</DialogTitle>
             <DialogDescription>
               Información completa de la notificación y la ficha de soporte relacionada.
@@ -270,8 +405,8 @@ export default function CentroNotificacionesFichasSoportePage() {
           </DialogHeader>
 
           {selectedNotificacion ? (
-            <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+            <div className="max-h-[calc(90vh-11rem)] space-y-5 overflow-y-auto px-6 py-5">
+              <div className="grid gap-3 sm:grid-cols-2 [&>div]:rounded-xl [&>div]:bg-primary/[0.035] [&>div]:p-4 [&>div]:shadow-sm [&>div>p:first-child]:mb-2 [&>div>p:first-child]:inline-flex [&>div>p:first-child]:rounded-md [&>div>p:first-child]:bg-primary/10 [&>div>p:first-child]:px-2 [&>div>p:first-child]:py-1 [&>div>p:first-child]:text-[11px] [&>div>p:first-child]:font-bold [&>div>p:first-child]:uppercase [&>div>p:first-child]:tracking-[0.12em] [&>div>p:first-child]:text-primary [&>div>p:last-child]:font-medium [&>div>p:last-child]:leading-6 [&>div>p:last-child]:text-foreground">
                 <div>
                   <p className="text-sm font-semibold">IdNotificacion</p>
                   <p>{selectedNotificacion.IdNotificacion}</p>
@@ -279,6 +414,10 @@ export default function CentroNotificacionesFichasSoportePage() {
                 <div>
                   <p className="text-sm font-semibold">IdReferencia</p>
                   <p>{selectedNotificacion.IdReferencia}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Registrado por</p>
+                  <p>{selectedNotificacion.NombreUsuarioOrigen || "-"}</p>
                 </div>
                 <div>
                   <p className="text-sm font-semibold">Título</p>
@@ -324,35 +463,68 @@ export default function CentroNotificacionesFichasSoportePage() {
                       : "-"}
                   </p>
                 </div>
+                <div>
+                  <p className="text-sm font-semibold">FechaRespuesta</p>
+                  <p>
+                    {selectedNotificacion.FechaRespuesta
+                      ? new Date(String(selectedNotificacion.FechaRespuesta)).toLocaleString("es-PE", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Respondido por</p>
+                  <p>{selectedNotificacion.NombreUsuarioRespondio || "Pendiente"}</p>
+                </div>
               </div>
 
               <div>
-                <p className="text-sm font-semibold">Ficha de soporte relacionada</p>
-                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                <p className="mb-2 inline-flex rounded-md bg-primary/10 px-2.5 py-1 text-xs font-bold uppercase tracking-[0.12em] text-primary">Observación del administrador</p>
+                <p className="mt-2 whitespace-pre-wrap rounded-xl bg-muted/40 p-4 text-sm leading-6">
+                  {selectedNotificacion.ObservacionAdministrador || "Sin observación."}
+                </p>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-primary">Ficha de soporte relacionada</p>
+                <div className="rounded-xl bg-primary/[0.06] p-5">
                   {fichaQuery.isLoading ? (
                     <p>Cargando ficha relacionada...</p>
                   ) : fichaQuery.isError ? (
                     <p className="text-destructive">No se pudo cargar la ficha relacionada.</p>
                   ) : fichaQuery.data ? (
-                    <div className="space-y-3">
-                      <p>
-                        <span className="font-semibold">NumeroFicha:</span> {fichaQuery.data.NumeroFicha || "-"}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Responsable:</span> {fichaQuery.data.Responsable || "-"}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Dependencia:</span> {fichaQuery.data.Dependencia || "-"}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Ambiente:</span> {fichaQuery.data.Ambiente || "-"}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Diagnóstico:</span> {fichaQuery.data.Diagnostico || "-"}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Recomendación:</span> {fichaQuery.data.Recomendacion || "-"}
-                      </p>
+                    <div className="space-y-4 text-sm [&_h3]:!bg-primary/10 [&_h3]:!text-primary">
+                      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                        <h3 className="bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white">I. Tipo del bien</h3>
+                        <div className="p-4"><span className="inline-flex rounded-md bg-primary/10 px-3 py-2 font-medium text-primary">{fichaQuery.data.TipoBien || "No especificado"}</span></div>
+                      </section>
+                      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                        <h3 className="bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white">II. Detalle técnico del bien</h3>
+                        <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-3">
+                          <p className="p-4"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Bien / descripción</span>{fichaQuery.data.Bien?.Descripcion || "-"}</p>
+                          <p className="p-4"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Código inventario</span>{fichaQuery.data.Bien?.CodigoInventario || "-"}</p>
+                          <p className="p-4"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Código patrimonial</span>{fichaQuery.data.Bien?.CodigoPatrimonial || "-"}</p>
+                          <p className="p-4"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Marca</span>{fichaQuery.data.Bien?.Marca?.Marca || "-"}</p>
+                          <p className="p-4"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Modelo</span>{fichaQuery.data.Bien?.Modelo?.Modelo || "-"}</p>
+                          <p className="p-4"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">N.° de serie</span>{fichaQuery.data.Bien?.NumeroSerie || "-"}</p>
+                        </div>
+                      </section>
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"><h3 className="bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white">III. Condición del bien</h3><p className="p-4 font-medium">{fichaQuery.data.Condicion?.Condicion || "-"}</p></section>
+                        <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"><h3 className="bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white">IV. Estado del bien</h3><p className="p-4 font-medium">{fichaQuery.data.Estado?.EstadoBien || "-"}</p></section>
+                      </div>
+                      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+                        <h3 className="bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white">V. Datos de la ficha</h3>
+                        <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3 [&>p>span]:mb-1 [&>p>span]:block [&>p>span]:text-[11px] [&>p>span]:font-bold [&>p>span]:uppercase [&>p>span]:tracking-wide [&>p>span]:text-muted-foreground">
+                          <p><span>N.° de ficha</span>{fichaQuery.data.NumeroFicha || "-"}</p><p><span>Fecha de registro</span>{fichaQuery.data.FechaRegistro ? new Date(String(fichaQuery.data.FechaRegistro)).toLocaleString("es-PE") : "-"}</p><p><span>Responsable</span>{fichaQuery.data.Responsable || "-"}</p><p><span>Unidad orgánica</span>{fichaQuery.data.UnidadOrganica || "-"}</p><p><span>Dependencia</span>{fichaQuery.data.Dependencia || "-"}</p><p><span>Ambiente</span>{fichaQuery.data.Ambiente || "-"}</p><p><span>Prioridad</span>{fichaQuery.data.Prioridad?.NombrePrioridad || "-"}</p><p><span>Estado del ticket</span>{fichaQuery.data.EstadoTicket || "-"}</p><p><span>Técnico</span>{fichaQuery.data.UsuarioSoporte?.Nombres || fichaQuery.data.UsuarioSoporte?.Usuario || "-"}</p>
+                        </div>
+                      </section>
+                      <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"><h3 className="bg-slate-800 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-white">VI. Atención técnica</h3><div className="space-y-4 p-4"><p><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Descripción del problema</span><span className="whitespace-pre-wrap leading-6">{fichaQuery.data.DescripcionProblema || "-"}</span></p><p><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Diagnóstico</span><span className="whitespace-pre-wrap leading-6">{fichaQuery.data.Diagnostico || "-"}</span></p><p><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Trabajos realizados</span><span className="whitespace-pre-wrap leading-6">{fichaQuery.data.TrabajosRealizados || "-"}</span></p><p><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Recomendación</span><span className="whitespace-pre-wrap leading-6">{fichaQuery.data.Recomendacion || "-"}</span></p></div></section>
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">No hay ficha relacionada disponible.</p>
@@ -364,15 +536,30 @@ export default function CentroNotificacionesFichasSoportePage() {
             <p>No se ha seleccionado ninguna notificación.</p>
           )}
 
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="secondary">Cerrar</Button>
-            </DialogClose>
+          <DialogFooter className="border-t border-border bg-muted/20 px-6 py-4">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSelectedNotificacion(null);
+                setSelectedFichaId(null);
+              }}
+            >
+              Cerrar
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+      <Dialog
+        open={rejectDialogOpen}
+        onOpenChange={(open) => {
+          setRejectDialogOpen(open);
+          if (!open) {
+            setNotificationToReject(null);
+            setRejectError("");
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Rechazar ficha de soporte</DialogTitle>
@@ -389,19 +576,26 @@ export default function CentroNotificacionesFichasSoportePage() {
               />
               {rejectError ? <p className="text-sm text-destructive">{rejectError}</p> : null}
             </div>
-            {selectedNotificacion ? (
+            {notificationToReject ? (
               <div className="rounded-lg border border-border bg-muted/30 p-4">
                 <p className="text-sm font-semibold">Notificación</p>
-                <p className="text-sm">{selectedNotificacion.Titulo}</p>
-                <p className="text-sm text-muted-foreground">IdReferencia: {selectedNotificacion.IdReferencia}</p>
+                <p className="text-sm">{notificationToReject.Titulo}</p>
+                <p className="text-sm text-muted-foreground">IdReferencia: {notificationToReject.IdReferencia}</p>
               </div>
             ) : null}
           </div>
 
           <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="secondary" onClick={() => setRejectError("")}>Cerrar</Button>
-            </DialogClose>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setRejectDialogOpen(false);
+                setNotificationToReject(null);
+                setRejectError("");
+              }}
+            >
+              Cerrar
+            </Button>
             <Button
               variant="destructive"
               onClick={rechazarNotificacion}

@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/data-display/StatusBadge";
 import { TableActionButton, TableRowActions } from "@/components/data-display/TableRowActions";
 import { FilterBar, FilterField } from "@/components/forms/FilterBar";
 import { IconInput } from "@/components/forms/IconInput";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -656,7 +657,7 @@ if (selectedAreaId) {
         : "Nombre, tipo...";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Registro de inventario"
         description="Consulta, filtra y exporta registros de inventario. Usa las pestañas para cambiar de sección."
@@ -683,18 +684,19 @@ if (selectedAreaId) {
         />
       </div>
 
-      <Card className="border-border shadow-[var(--shadow-soft)]">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Registros</CardTitle>
+      <Card className="gap-0 rounded-2xl border border-border py-0 shadow-[var(--shadow-soft)]">
+        <CardHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
+          <CardTitle className="text-xl font-semibold tracking-tight text-foreground">Registros</CardTitle>
           <CardDescription>Consulta y filtra los registros de inventario.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 p-4 sm:p-6">
           <div className="flex flex-wrap gap-2">
             {(["bienes", "componentes", "software"] as FilterType[]).map((type) => (
               <Button
                 key={type}
                 variant={filterType === type ? "default" : "outline"}
                 size="sm"
+                className="rounded-lg"
                 onClick={() => {
                   setFilterType(type);
                   clearFilters();
@@ -709,7 +711,7 @@ if (selectedAreaId) {
             activeCount={activeFilterCount}
             onClear={clearFilters}
             actions={
-              <Button onClick={handleExport} disabled={exporting} className="gap-2">
+              <Button onClick={handleExport} disabled={exporting} className="gap-2 rounded-xl">
                 <Download className="size-4" aria-hidden="true" />
                 {exporting
                   ? "Generando..."
@@ -728,21 +730,14 @@ if (selectedAreaId) {
             </FilterField>
             {(filterType === "bienes" || filterType === "componentes") && (
               <FilterField label="Área" htmlFor="inventario-area">
-                <div className="relative">
-                  <Input
-                    id="inventario-area"
-                    type="text"
-                    list="areas-list"
-                    value={areaSearch}
-                    onChange={(e) => setAreaSearch(e.target.value)}
-                    placeholder="Escribe un área..."
-                  />
-                  <datalist id="areas-list">
-                    {areas.map((area) => (
-                      <option key={area.IdArea} value={area.NombreArea} />
-                    ))}
-                  </datalist>
-                </div>
+                <SearchableSelect
+                  id="inventario-area"
+                  value={areaSearch}
+                  onValueChange={setAreaSearch}
+                  options={areas.map((area) => ({ value: area.NombreArea, label: area.NombreArea }))}
+                  placeholder="Seleccione o busque área"
+                  emptyMessage="No hay áreas que coincidan"
+                />
               </FilterField>
             )}
             <FilterField label="Desde" htmlFor="inventario-start">
@@ -762,18 +757,17 @@ if (selectedAreaId) {
               />
             </FilterField>
             <FilterField label="Estado" htmlFor="inventario-estado">
-              <select
+              <SearchableSelect
                 id="inventario-estado"
                 value={activeFilter}
-                onChange={(e) =>
-                  setActiveFilter(e.target.value as "todos" | "activos" | "inactivos")
-                }
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              >
-                <option value="todos">Todos</option>
-                <option value="activos">Activos</option>
-                <option value="inactivos">Inactivos</option>
-              </select>
+                onValueChange={(value) => setActiveFilter(value as "todos" | "activos" | "inactivos")}
+                options={[
+                  { value: "todos", label: "Todos" },
+                  { value: "activos", label: "Activos" },
+                  { value: "inactivos", label: "Inactivos" },
+                ]}
+                placeholder="Seleccione o busque estado"
+              />
             </FilterField>
           </FilterBar>
 

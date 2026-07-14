@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Plus, Edit, Trash2, Eye, Power } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import ComponenteImportModal from "@/components/inventory/ComponenteImportModal";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ComponenteFormModal } from "@/lib/lazy/inventory-modals";
 import { DataTable } from "@/components/data-display/DataTable";
 import { TableRowActions, TableActionButton } from "@/components/data-display/TableRowActions";
@@ -286,7 +279,7 @@ export default function ComponentesPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 px-4 py-6 lg:px-8">
       <PageHeader
         title="Componentes de Bienes"
         description="Gestión de componentes asignados a bienes."
@@ -332,6 +325,15 @@ export default function ComponentesPage() {
         />
       ) : null}
 
+      <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-primary">Inventario institucional</p>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Listado de componentes</h2>
+          </div>
+          <div className="rounded-xl border border-primary/15 bg-card/80 px-4 py-3 text-sm shadow-sm"><p className="text-xs uppercase tracking-wide text-muted-foreground">Resultados</p><p className="mt-1 text-2xl font-semibold text-primary">{filteredComponentes.length}</p></div>
+        </div>
+        <div className="space-y-4 p-4 sm:p-6">
       <FilterBar
         fieldsClassName="lg:grid-cols-4"
         activeCount={
@@ -374,23 +376,17 @@ export default function ComponentesPage() {
           />
         </FilterField>
         <FilterField label="Estado" htmlFor="filter-estado">
-          <Select
-            value={filterEstado || null}
-            onValueChange={(value) => {
-              setFilterEstado(value ?? "");
-            }}
-          >
-            <SelectTrigger id="filter-estado" className="w-full">
-              <SelectValue placeholder="Seleccione estado" />
-            </SelectTrigger>
-            <SelectContent>
-              {estados?.map((estado: { IdEstado: number; EstadoBien: string }) => (
-                <SelectItem key={estado.IdEstado} value={estado.EstadoBien}>
-                  {estado.EstadoBien}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            id="filter-estado"
+            value={filterEstado}
+            onValueChange={setFilterEstado}
+            options={(estados ?? []).map((estado: { EstadoBien: string }) => ({
+              value: estado.EstadoBien,
+              label: estado.EstadoBien,
+            }))}
+            placeholder="Seleccione o busque estado"
+            emptyMessage="No hay estados que coincidan"
+          />
         </FilterField>
       </FilterBar>
       <DataTable
@@ -410,6 +406,8 @@ export default function ComponentesPage() {
           </div>
         }
       />
+        </div>
+      </section>
     </div>
   );
 }

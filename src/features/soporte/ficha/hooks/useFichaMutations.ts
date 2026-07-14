@@ -10,6 +10,7 @@ export function useFichaMutations(onSaveSuccess?: () => void) {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.fichasSoporte() });
+    queryClient.invalidateQueries({ queryKey: queryKeys.bienes.all() });
   };
 
   const saveMutation = useMutation({

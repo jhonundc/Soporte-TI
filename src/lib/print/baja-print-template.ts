@@ -336,8 +336,8 @@ export function buildBajaPrintHtml(baja: BajaPrintData, bienExtra?: BienEnriched
       <tr>
         <td class="sin-borde">Bueno ${checkbox(estado.includes("bueno") && !estado.includes("malo"))}</td>
         <td class="sin-borde">Regular ${checkbox(estado.includes("regular"))}</td>
-        <td class="sin-borde">Malo por reparar ${checkbox(estado.includes("malo por reparar"))}</td>
-        <td class="sin-borde">Malo para baja ${checkbox(estado.includes("malo para baja"))}</td>
+        <td class="sin-borde">Reparar ${checkbox(estado.includes("reparar") || estado.includes("malo por reparar"))}</td>
+        <td class="sin-borde">Baja ${checkbox(estado === "baja" || estado.includes("malo para baja"))}</td>
       </tr>
     </table>
 

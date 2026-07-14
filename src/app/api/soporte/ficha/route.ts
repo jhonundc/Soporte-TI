@@ -16,6 +16,31 @@ function parseNullableInt(value: any): number | null {
   return Number.isInteger(parsed) ? parsed : null;
 }
 
+async function syncBienState(
+  transaction: sql.Transaction,
+  data: { IdBien?: number | string | null; IdCondicion?: number | string | null; IdEstadoBien?: number | string | null }
+) {
+  const IdBien = parseNullableInt(data.IdBien);
+  const IdCondicion = parseNullableInt(data.IdCondicion);
+  const IdEstadoBien = parseNullableInt(data.IdEstadoBien);
+
+  if (!IdBien || !IdCondicion || !IdEstadoBien) return;
+
+  const result = await executeTransactionQuery<{ IdBien: number }>(
+    transaction,
+    `UPDATE dbo.Bienes
+     SET IdCondicion = @IdCondicion,
+         IdEstadoBien = @IdEstadoBien
+     OUTPUT INSERTED.IdBien
+     WHERE IdBien = @IdBien`,
+    { IdBien, IdCondicion, IdEstadoBien }
+  );
+
+  if (!result.recordset?.[0]) {
+    throw new Error("No se encontró el bien seleccionado para actualizar su condición y estado.");
+  }
+}
+
 function toNullableString(value: any): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -97,6 +122,7 @@ async function enrichFichas(baseRows: any[]) {
       Recomendacion: row.Recomendacion,
       IdPrioridad: row.IdPrioridad,
       EstadoTicket: row.EstadoTicket,
+      EstadoAprobacion: row.EstadoAprobacion,
       Siglas: row.Siglas,
       FirmaSoporte: row.FirmaSoporte,
       FirmaJefeUnidad: row.FirmaJefeUnidad,
@@ -352,6 +378,8 @@ export async function POST(request: Request) {
       params
     );
 
+    await syncBienState(transaction, params);
+
     const createdResult = await executeTransactionQuery(
       transaction,
       `EXEC sp_ConsultaSoporte @Accion = @Accion, @NumeroFicha = @NumeroFicha`,
@@ -441,6 +469,8 @@ export async function POST(request: Request) {
 
 // Actualizar una ficha de soporte
 export async function PATCH(request: Request) {
+  let transaction: sql.Transaction | null = null;
+
   try {
     const auth = await authSession();
     if (guardFailed(auth)) return auth;
@@ -468,13 +498,23 @@ export async function PATCH(request: Request) {
       accion = "E";
     }
 
+    const existingResult = await executeQuery(
+      "EXEC sp_ConsultaSoporte @Accion = @Accion, @IdSoporte = @IdSoporte",
+      { Accion: "I", IdSoporte: id }
+    );
+    const existingFicha = (existingResult.recordset || [])[0] as
+      | { IdUsuarioSoporte?: number; NumeroFicha?: string }
+      | undefined;
+
+    if (!existingFicha) {
+      return NextResponse.json({ error: "No se encontró la ficha de soporte." }, { status: 404 });
+    }
+
     // If soporte user, ensure they own the ficha before allowing update
     const role = (session.role || "").toLowerCase();
     const isSoporte = role.includes("soporte");
     if (isSoporte) {
-      const ownerRes = await executeQuery(`EXEC sp_ConsultaSoporte @Accion = @Accion, @IdSoporte = @IdSoporte`, { Accion: "I", IdSoporte: id });
-      const ownerRow = (ownerRes.recordset || [])[0] || {};
-      if (ownerRow.IdUsuarioSoporte && ownerRow.IdUsuarioSoporte !== session.id) {
+      if (existingFicha.IdUsuarioSoporte && existingFicha.IdUsuarioSoporte !== session.id) {
         return NextResponse.json({ error: "No tiene permisos para modificar esta ficha" }, { status: 403 });
       }
     }
@@ -503,7 +543,12 @@ export async function PATCH(request: Request) {
       IdUsuarioSoporte: data.IdUsuarioSoporte,
     };
 
-    await executeQuery(
+    const pool = await getPool();
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    await executeTransactionQuery(
+      transaction,
       `EXEC sp_MantenimientoSoporte
          @Accion = @Accion,
          @IdSoporte = @IdSoporte,
@@ -529,6 +574,67 @@ export async function PATCH(request: Request) {
       params
     );
 
+    if (accion === "A") {
+      await syncBienState(transaction, params);
+
+      await executeTransactionQuery(
+        transaction,
+        `UPDATE dbo.SoporteTecnico
+         SET EstadoAprobacion = 'PENDIENTE'
+         WHERE IdSoporte = @IdSoporte`,
+        { IdSoporte: id }
+      );
+
+      const pendingNotificationResult = await executeTransactionQuery<{ IdNotificacion: number }>(
+        transaction,
+        `SELECT TOP 1 IdNotificacion
+         FROM dbo.Notificaciones
+         WHERE TipoFicha = 'SOPORTE'
+           AND IdReferencia = @IdReferencia
+           AND EstadoAprobacion = 'PENDIENTE'
+           AND Activo = 1`,
+        { IdReferencia: id }
+      );
+
+      if (!pendingNotificationResult.recordset?.[0]) {
+        const adminDestinationId = await findAdminDestinationId(transaction);
+        const originUserId = parseNullableInt(existingFicha.IdUsuarioSoporte);
+
+        if (!adminDestinationId || !originUserId) {
+          throw new Error("No se pudo determinar el origen o destino de la nueva notificación.");
+        }
+
+        const numeroFicha = data.NumeroFicha || existingFicha.NumeroFicha || String(id);
+        await executeTransactionQuery(
+          transaction,
+          `EXEC dbo.sp_MantenimientoNotificacion
+             @Accion = @Accion,
+             @IdNotificacion = @IdNotificacion,
+             @TipoFicha = @TipoFicha,
+             @IdReferencia = @IdReferencia,
+             @IdUsuarioOrigen = @IdUsuarioOrigen,
+             @IdUsuarioDestino = @IdUsuarioDestino,
+             @Titulo = @Titulo,
+             @Mensaje = @Mensaje,
+             @ObservacionAdministrador = @ObservacionAdministrador`,
+          {
+            Accion: "R",
+            IdNotificacion: null,
+            TipoFicha: "SOPORTE",
+            IdReferencia: id,
+            IdUsuarioOrigen: originUserId,
+            IdUsuarioDestino: adminDestinationId,
+            Titulo: `Ficha de soporte actualizada ${numeroFicha}`,
+            Mensaje: `Se ha actualizado la ficha de soporte ${numeroFicha} y requiere una nueva revisión.`,
+            ObservacionAdministrador: null,
+          }
+        );
+      }
+    }
+
+    await transaction.commit();
+    transaction = null;
+
     const updatedResult = await executeQuery(
       `EXEC sp_ConsultaSoporte @Accion = @Accion, @IdSoporte = @IdSoporte`,
       { Accion: "I", IdSoporte: id }
@@ -536,6 +642,13 @@ export async function PATCH(request: Request) {
     const updatedRows = await enrichFichas(updatedResult.recordset || []);
     return NextResponse.json(updatedRows[0] || { success: true });
   } catch (error) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error("Error al revertir la actualización de ficha:", rollbackError);
+      }
+    }
     console.error("Error en PATCH /api/soporte/ficha:", error);
     return NextResponse.json(
       { error: `Error al actualizar la ficha de soporte: ${error instanceof Error ? error.message : "Error desconocido"}` },

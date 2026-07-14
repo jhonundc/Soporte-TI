@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconInput } from "@/components/forms/IconInput";
 import { FilterBar, FilterField } from "@/components/forms/FilterBar";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Download, Search } from "lucide-react";
 import { notify } from "@/lib/feedback/toast";
@@ -139,43 +140,39 @@ export default function ReportesSoftwarePage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Reportes de software"
         description="Consulta reportes de estado, licencias y vencimientos de software."
       />
 
-      <Card className="border-border shadow-[var(--shadow-soft)]">
-        <CardHeader>
-          <CardTitle>{REPORT_TITLES[accion] || "Reporte de software"}</CardTitle>
+      <Card className="gap-0 rounded-2xl border border-border py-0 shadow-[var(--shadow-soft)]">
+        <CardHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
+          <CardTitle className="text-xl font-semibold tracking-tight text-foreground">{REPORT_TITLES[accion] || "Reporte de software"}</CardTitle>
           <CardDescription>
             Selecciona un tipo de reporte para ver los resultados generados por el procedimiento.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 p-4 sm:p-6">
           <FilterBar
             activeCount={activeFilterCount}
             onClear={clearFilters}
             actions={
-              <Button onClick={handleExport} disabled={exporting || !data.length} className="gap-2">
+              <Button onClick={handleExport} disabled={exporting || !data.length} className="gap-2 rounded-xl">
                 <Download className="size-4" aria-hidden="true" />
                 {exporting ? "Generando..." : "Exportar"}
               </Button>
             }
           >
             <FilterField label="Reporte" htmlFor="reportes-software-accion">
-              <select
+              <SearchableSelect
                 id="reportes-software-accion"
                 value={accion}
-                onChange={(event) => setAccion(event.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              >
-                {ACTION_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                onValueChange={setAccion}
+                options={ACTION_OPTIONS}
+                placeholder="Seleccione o busque reporte"
+                emptyMessage="No hay reportes que coincidan"
+              />
             </FilterField>
             <FilterField label="Buscar" htmlFor="reportes-software-search">
               <IconInput

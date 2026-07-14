@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { executeQuery } from "@/lib/db";
+import { executeQuery, executeTransactionQuery, getPool, sql } from "@/lib/db";
 import { authSession, guardFailed } from "@/lib/auth/guards";
 import {
   bajaCreateApiSchema,
@@ -14,6 +14,78 @@ function parseNullableInt(value: any): number | null {
   if (value === null || value === undefined || value === "") return null;
   const parsed = typeof value === "number" ? value : parseInt(String(value), 10);
   return Number.isInteger(parsed) ? parsed : null;
+}
+
+async function syncBienState(
+  transaction: sql.Transaction,
+  data: { IdBien?: number | string | null; IdCondicion?: number | string | null; IdEstadoBien?: number | string | null }
+) {
+  const IdBien = parseNullableInt(data.IdBien);
+  const IdCondicion = parseNullableInt(data.IdCondicion);
+  const IdEstadoBien = parseNullableInt(data.IdEstadoBien);
+
+  if (!IdBien || !IdCondicion || !IdEstadoBien) return;
+
+  const result = await executeTransactionQuery<{ IdBien: number }>(
+    transaction,
+    `UPDATE dbo.Bienes
+     SET IdCondicion = @IdCondicion,
+         IdEstadoBien = @IdEstadoBien
+     OUTPUT INSERTED.IdBien
+     WHERE IdBien = @IdBien`,
+    { IdBien, IdCondicion, IdEstadoBien }
+  );
+
+  if (!result.recordset?.[0]) {
+    throw new Error("No se encontró el bien seleccionado para actualizar su condición y estado.");
+  }
+}
+
+async function findAdminDestinationId(transaction: sql.Transaction) {
+  const result = await executeTransactionQuery<{ IdUsuario: number }>(
+    transaction,
+    `SELECT TOP 1 u.IdUsuario
+     FROM dbo.Usuarios u
+     INNER JOIN dbo.Roles r ON r.IdRol = u.IdRol
+     WHERE u.Activo = 1
+       AND r.Activo = 1
+       AND LOWER(LTRIM(RTRIM(r.NombreRol))) = 'admin'
+     ORDER BY u.IdUsuario`
+  );
+  return result.recordset?.[0]?.IdUsuario ?? null;
+}
+
+async function createBajaNotification(
+  transaction: sql.Transaction,
+  data: { idBaja: number; numeroFicha: string; idUsuarioOrigen: number; actualizada?: boolean }
+) {
+  const adminDestinationId = await findAdminDestinationId(transaction);
+  if (!adminDestinationId) {
+    throw new Error("No se encontró un administrador destino para la notificación.");
+  }
+
+  await executeTransactionQuery(
+    transaction,
+    `EXEC dbo.sp_MantenimientoNotificacionBaja
+       @Accion = @Accion,
+       @IdReferencia = @IdReferencia,
+       @IdUsuarioOrigen = @IdUsuarioOrigen,
+       @IdUsuarioDestino = @IdUsuarioDestino,
+       @Titulo = @Titulo,
+       @Mensaje = @Mensaje`,
+    {
+      Accion: "R",
+      IdReferencia: data.idBaja,
+      IdUsuarioOrigen: data.idUsuarioOrigen,
+      IdUsuarioDestino: adminDestinationId,
+      Titulo: data.actualizada
+        ? `Ficha de baja actualizada ${data.numeroFicha}`
+        : `Nueva ficha de baja ${data.numeroFicha}`,
+      Mensaje: data.actualizada
+        ? `Se ha actualizado la ficha de baja ${data.numeroFicha} y requiere una nueva revisión.`
+        : `Se ha registrado una nueva ficha de baja con número ${data.numeroFicha}.`,
+    }
+  );
 }
 
 async function enrichBajas(baseRows: any[]) {
@@ -59,6 +131,7 @@ async function enrichBajas(baseRows: any[]) {
       CausalBaja: row.CausalBaja,
       Observacion: row.Observacion,
       IdUsuarioRegistro: row.IdUsuarioRegistro,
+      EstadoAprobacion: row.EstadoAprobacion,
       Bien: bien
         ? {
             IdBien: bien.IdBien,
@@ -128,6 +201,8 @@ export async function GET(request: Request) {
 
 // Crear una nueva ficha de baja
 export async function POST(request: Request) {
+  let transaction: sql.Transaction | null = null;
+
   try {
     const auth = await authSession();
     if (guardFailed(auth)) return auth;
@@ -141,7 +216,12 @@ export async function POST(request: Request) {
     const isSoporte = role.includes("soporte");
     const idUsuarioRegistro = isSoporte ? session.id : data.IdUsuarioRegistro;
 
-    await executeQuery(
+    const pool = await getPool();
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    await executeTransactionQuery(
+      transaction,
       `EXEC sp_MantenimientoBajaBien
          @Accion = @Accion,
          @NumeroFichaBaja = @NumeroFichaBaja,
@@ -177,6 +257,31 @@ export async function POST(request: Request) {
       }
     );
 
+    await syncBienState(transaction, data);
+
+    const createdIdResult = await executeTransactionQuery<{ IdBaja: number }>(
+      transaction,
+      `SELECT TOP 1 IdBaja
+       FROM dbo.BajasBienes
+       WHERE NumeroFichaBaja = @NumeroFichaBaja
+       ORDER BY IdBaja DESC`,
+      { NumeroFichaBaja: data.NumeroFichaBaja }
+    );
+    const createdId = createdIdResult.recordset?.[0]?.IdBaja;
+    const originUserId = parseNullableInt(idUsuarioRegistro);
+    if (!createdId || !originUserId) {
+      throw new Error("No se pudo obtener la ficha de baja creada o su usuario de origen.");
+    }
+
+    await createBajaNotification(transaction, {
+      idBaja: createdId,
+      numeroFicha: data.NumeroFichaBaja,
+      idUsuarioOrigen: originUserId,
+    });
+
+    await transaction.commit();
+    transaction = null;
+
     const createdResult = await executeQuery(
       `EXEC sp_ConsultaBajaBien @Accion = @Accion, @NumeroFichaBaja = @NumeroFichaBaja`,
       { Accion: "F", NumeroFichaBaja: data.NumeroFichaBaja }
@@ -184,6 +289,13 @@ export async function POST(request: Request) {
     const createdRows = await enrichBajas(createdResult.recordset || []);
     return NextResponse.json(createdRows[0] || { success: true }, { status: 201 });
   } catch (error) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error("Error al revertir la creación de ficha de baja:", rollbackError);
+      }
+    }
     console.error("Error en POST /api/soporte/baja:", error);
     return NextResponse.json(
       { error: "Error al crear la ficha de baja" },
@@ -193,6 +305,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  let transaction: sql.Transaction | null = null;
+
   try {
     const auth = await authSession();
     if (guardFailed(auth)) return auth;
@@ -202,20 +316,32 @@ export async function PATCH(request: Request) {
     if ("error" in parsed) return parsed.error;
     const data = parsed.data;
 
+    const existingResult = await executeQuery<{
+      IdUsuarioRegistro: number | null;
+      NumeroFichaBaja: string | null;
+    }>(
+      "SELECT IdUsuarioRegistro, NumeroFichaBaja FROM dbo.BajasBienes WHERE IdBaja = @IdBaja",
+      { IdBaja: data.IdBaja }
+    );
+    const existingBaja = existingResult.recordset?.[0];
+    if (!existingBaja) {
+      return NextResponse.json({ error: "No se encontró la ficha de baja." }, { status: 404 });
+    }
+
     const role = (session.role || "").toLowerCase();
     const isSoporte = role.includes("soporte");
     if (isSoporte) {
-      const ownerRes = await executeQuery(
-        "SELECT IdUsuarioRegistro FROM BajasBienes WHERE IdBaja = @IdBaja",
-        { IdBaja: data.IdBaja }
-      );
-      const ownerRow = (ownerRes.recordset || [])[0] || {};
-      if (ownerRow.IdUsuarioRegistro && ownerRow.IdUsuarioRegistro !== session.id) {
+      if (existingBaja.IdUsuarioRegistro && existingBaja.IdUsuarioRegistro !== session.id) {
         return NextResponse.json({ error: "No tiene permisos para actualizar esta ficha de baja" }, { status: 403 });
       }
     }
 
-    await executeQuery(
+    const pool = await getPool();
+    transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    await executeTransactionQuery(
+      transaction,
       `EXEC sp_MantenimientoBajaBien
          @Accion = @Accion,
          @IdBaja = @IdBaja,
@@ -253,8 +379,50 @@ export async function PATCH(request: Request) {
       }
     );
 
+    await syncBienState(transaction, data);
+
+    await executeTransactionQuery(
+      transaction,
+      "UPDATE dbo.BajasBienes SET EstadoAprobacion = 'PENDIENTE' WHERE IdBaja = @IdBaja",
+      { IdBaja: data.IdBaja }
+    );
+
+    const pendingNotificationResult = await executeTransactionQuery<{ IdNotificacion: number }>(
+      transaction,
+      `SELECT TOP 1 IdNotificacion
+       FROM dbo.Notificaciones
+       WHERE TipoFicha = 'BAJA'
+         AND IdReferencia = @IdReferencia
+         AND EstadoAprobacion = 'PENDIENTE'
+         AND Activo = 1`,
+      { IdReferencia: data.IdBaja }
+    );
+
+    const originUserId = parseNullableInt(existingBaja.IdUsuarioRegistro);
+    if (!pendingNotificationResult.recordset?.[0]) {
+      if (!originUserId) {
+        throw new Error("No se pudo determinar el usuario de origen de la ficha de baja.");
+      }
+      await createBajaNotification(transaction, {
+        idBaja: data.IdBaja,
+        numeroFicha: data.NumeroFichaBaja || existingBaja.NumeroFichaBaja || String(data.IdBaja),
+        idUsuarioOrigen: originUserId,
+        actualizada: true,
+      });
+    }
+
+    await transaction.commit();
+    transaction = null;
+
     return NextResponse.json({ success: true, message: "Ficha de baja actualizada" });
   } catch (error) {
+    if (transaction) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error("Error al revertir la actualización de ficha de baja:", rollbackError);
+      }
+    }
     console.error("Error en PATCH /api/soporte/baja:", error);
     return NextResponse.json({ error: "Error al actualizar la ficha de baja" }, { status: 500 });
   }

@@ -11,13 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import type {
   AreaRef,
   BienRef,
@@ -79,19 +73,26 @@ export function FichaFormDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <FormDialogContent size="xl" className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {editingFicha ? "Editar Ficha de Soporte" : "Nueva Ficha de Soporte"}
-            </DialogTitle>
-            <DialogDescription>
-              Complete todos los campos para registrar la ficha de soporte técnico.
-            </DialogDescription>
-          </DialogHeader>
+        <FormDialogContent size="xl" className="max-h-[92vh] overflow-y-auto p-0">
+          <div className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5 sm:px-8">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-primary">Registro de soporte</p>
+                <DialogHeader className="space-y-1 text-left">
+                  <DialogTitle>{editingFicha ? "Editar Ficha de Soporte" : "Nueva Ficha de Soporte"}</DialogTitle>
+                  <DialogDescription>Complete la información técnica y del bien para registrar la ficha.</DialogDescription>
+                </DialogHeader>
+              </div>
+              <div className="rounded-xl border border-primary/15 bg-card/80 px-4 py-3 text-sm shadow-sm">
+                <span className="block text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">Estado</span>
+                <span className="font-semibold text-primary">{editingFicha ? "Edición" : "Nuevo registro"}</span>
+              </div>
+            </div>
+          </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
-              <h3 className="border-b pb-2 text-sm font-semibold text-foreground">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 px-6 py-6 sm:px-8">
+            <div className="space-y-4 rounded-2xl border border-primary/15 bg-primary/[0.035] p-5 shadow-sm">
+              <h3 className="inline-flex rounded-md bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
                 1. Datos de la Ficha y Responsable
               </h3>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -125,23 +126,12 @@ export function FichaFormDialog({
                 </div>
                 <div>
                   <Label className="mb-2 block text-xs font-semibold text-muted-foreground">Dependencia (Área)</Label>
-                  <Select
-                    value={watch("Dependencia") || undefined}
-                    onValueChange={(value) => setValue("Dependencia", value ?? "")}
-                  >
-                    <SelectTrigger className="bg-white">
-                      <SelectValue placeholder="Seleccione dependencia / área">
-                        {watch("Dependencia")}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {areas?.map((area) => (
-                        <SelectItem key={area.IdArea} value={area.NombreArea}>
-                          {area.NombreArea}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={watch("Dependencia") || ""}
+                    onValueChange={(value) => setValue("Dependencia", value)}
+                    options={(areas ?? []).map((area) => ({ value: area.NombreArea, label: area.NombreArea }))}
+                    placeholder="Seleccione o busque dependencia"
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <Label className="mb-2 block text-xs font-semibold text-muted-foreground">Ambiente</Label>
@@ -150,8 +140,8 @@ export function FichaFormDialog({
               </div>
             </div>
 
-            <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
-              <h3 className="border-b pb-2 text-sm font-semibold text-foreground">
+            <div className="space-y-4 rounded-2xl border border-primary/15 bg-primary/[0.035] p-5 shadow-sm">
+              <h3 className="inline-flex rounded-md bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
                 2. Selección del Activo / Bien
               </h3>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -177,31 +167,19 @@ export function FichaFormDialog({
                 </div>
                 <div>
                   <Label className="mb-2 block text-xs font-semibold text-muted-foreground">Prioridad</Label>
-                  <Select
-                    value={watch("IdPrioridad") ? String(watch("IdPrioridad")) : undefined}
-                    onValueChange={(value) => setValue("IdPrioridad", value ?? "")}
-                  >
-                    <SelectTrigger className="bg-white">
-                      <SelectValue placeholder="Seleccione prioridad">
-                        {
-                          prioridades?.find(
-                            (p) => String(p.IdPrioridad) === String(watch("IdPrioridad"))
-                          )?.NombrePrioridad
-                        }
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {prioridades?.map((p) => (
-                        <SelectItem key={p.IdPrioridad} value={String(p.IdPrioridad)}>
-                          {p.NombrePrioridad}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={watch("IdPrioridad") ? String(watch("IdPrioridad")) : ""}
+                    onValueChange={(value) => setValue("IdPrioridad", value)}
+                    options={(prioridades ?? []).map((p) => ({
+                      value: String(p.IdPrioridad),
+                      label: String(p.NombrePrioridad ?? ""),
+                    }))}
+                    placeholder="Seleccione o busque prioridad"
+                  />
                 </div>
               </div>
 
-              <div className="space-y-2 rounded-lg border bg-white p-4 text-xs">
+              <div className="space-y-2 rounded-xl border border-primary/15 bg-card p-4 text-xs shadow-sm">
                 <span className="mb-1 block font-bold text-muted-foreground">
                   Detalle Técnico del Activo Seleccionado:
                 </span>
@@ -249,8 +227,8 @@ export function FichaFormDialog({
               </div>
             </div>
 
-            <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
-              <h3 className="border-b pb-2 text-sm font-semibold text-foreground">
+            <div className="space-y-4 rounded-2xl border border-primary/15 bg-primary/[0.035] p-5 shadow-sm">
+              <h3 className="inline-flex rounded-md bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
                 3. Tipo, Condición y Estado del Bien
               </h3>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -258,7 +236,7 @@ export function FichaFormDialog({
                   <Label className="mb-2 block text-xs font-semibold text-muted-foreground">
                     Tipo de Bien (Elegir uno)
                   </Label>
-                  <div className="space-y-2 rounded-lg border bg-white p-3">
+                  <div className="space-y-2 rounded-xl border border-primary/15 bg-card p-4 shadow-sm">
                     {tiposBien?.map((tipo) => (
                       <div key={tipo.IdTipoBien} className="flex items-center gap-2">
                         <input
@@ -288,7 +266,7 @@ export function FichaFormDialog({
                   <Label className="mb-2 block text-xs font-semibold text-muted-foreground">
                     Condición (Elegir uno)
                   </Label>
-                  <div className="space-y-2 rounded-lg border bg-white p-3">
+                  <div className="space-y-2 rounded-xl border border-primary/15 bg-card p-4 shadow-sm">
                     <div className="flex items-center gap-2">
                       <input
                         type="radio"
@@ -335,7 +313,7 @@ export function FichaFormDialog({
                   <Label className="mb-2 block text-xs font-semibold text-muted-foreground">
                     Estado del Bien (Elegir uno)
                   </Label>
-                  <div className="flex min-h-[82px] flex-col justify-center space-y-2 rounded-lg border bg-white p-3">
+                  <div className="flex min-h-[82px] flex-col justify-center space-y-2 rounded-xl border border-primary/15 bg-card p-4 shadow-sm">
                     {estadoBienOptions.length > 0 ? (
                       estadoBienOptions.map((estado) => (
                         <div key={estado.IdEstadoBien} className="flex items-center gap-2">
@@ -368,8 +346,8 @@ export function FichaFormDialog({
               </div>
             </div>
 
-            <div className="space-y-4 rounded-xl border border-border bg-muted/30 p-4">
-              <h3 className="border-b pb-2 text-sm font-semibold text-foreground">
+            <div className="space-y-4 rounded-2xl border border-primary/15 bg-primary/[0.035] p-5 shadow-sm">
+              <h3 className="inline-flex rounded-md bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
                 4. Trabajos Realizados y Diagnóstico
               </h3>
               <div className="space-y-4">
@@ -418,12 +396,13 @@ export function FichaFormDialog({
               </div>
             </div>
 
-            <div className="flex justify-end gap-4 border-t pt-4">
-              <Button type="button" variant="outline" onClick={closeForm}>
+            <div className="flex justify-end gap-3 border-t border-primary/10 pt-5">
+              <Button type="button" variant="outline" className="rounded-xl" onClick={closeForm}>
                 Cancelar
               </Button>
               <Button
                 type="submit"
+                className="rounded-xl"
                 disabled={savePending}
               >
                 {savePending ? "Guardando..." : "Guardar Ficha"}

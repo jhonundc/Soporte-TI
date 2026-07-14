@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Sparkles, Eye, Edit, Trash2, Search, Ticket, Clock, Wrench, CheckCircle, TrendingUp, Printer, FileSpreadsheet } from "lucide-react";
+import { Download, Sparkles, Eye, Edit, Trash2, Search, FileDown, Headset, Clock, CheckCircle, CircleX, Printer, FileSpreadsheet } from "lucide-react";
 import { useSession } from "@/lib/hooks/useSession";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/data-display/StatCard";
@@ -307,12 +307,12 @@ export default function ReportesFichasPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Registro de fichas"
         description="Listado, filtros, exportación y acciones sobre fichas de soporte y baja."
         actions={
-          <Button variant="outline" onClick={loadRecords}>
+          <Button variant="outline" className="rounded-xl" onClick={loadRecords}>
             Recargar
           </Button>
         }
@@ -320,54 +320,55 @@ export default function ReportesFichasPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
-          title="Total fichas"
-          value={loadingStats ? "..." : stats?.totalSoporte ?? records.length}
-          icon={Ticket}
+          title="Fichas de baja"
+          value={loadingStats ? "..." : stats?.totalBajas ?? 0}
+          icon={FileDown}
+          accent="destructive"
+        />
+        <StatCard
+          title="Fichas de soporte"
+          value={loadingStats ? "..." : stats?.totalSoporte ?? 0}
+          icon={Headset}
           accent="primary"
         />
         <StatCard
           title="Pendientes"
-          value={loadingStats ? "..." : stats?.totalSoportePendiente ?? 0}
+          value={loadingStats ? "..." : stats?.totalFichasPendientes ?? 0}
           icon={Clock}
           accent="warning"
         />
         <StatCard
-          title="En progreso"
-          value={loadingStats ? "..." : stats?.totalSoporteProceso ?? 0}
-          icon={Wrench}
-          accent="primary"
-        />
-        <StatCard
-          title="Atendidas"
-          value={loadingStats ? "..." : stats?.totalSoporteAtendido ?? 0}
+          title="Aceptadas"
+          value={loadingStats ? "..." : stats?.totalFichasAceptadas ?? 0}
           icon={CheckCircle}
           accent="success"
         />
         <StatCard
-          title="Derivadas"
-          value={loadingStats ? "..." : stats?.totalSoporteDerivado ?? 0}
-          icon={TrendingUp}
-          accent="muted"
+          title="Rechazadas"
+          value={loadingStats ? "..." : stats?.totalFichasRechazadas ?? 0}
+          icon={CircleX}
+          accent="destructive"
         />
       </div>
 
-      <Card className="border-border shadow-[var(--shadow-soft)]">
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="gap-0 rounded-2xl border border-border py-0 shadow-[var(--shadow-soft)]">
+        <CardHeader className="flex flex-col gap-4 border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle>Registros</CardTitle>
+            <CardTitle className="text-xl font-semibold tracking-tight text-foreground">Registros</CardTitle>
             <CardDescription>Lista de fichas filtrable y exportable</CardDescription>
           </div>
-          <Button onClick={handleExport} disabled={exporting} className="gap-2" size="lg">
+          <Button onClick={handleExport} disabled={exporting} className="gap-2 rounded-xl" size="lg">
             <Download className="size-4" aria-hidden="true" />
             {exporting ? "Generando..." : "Descargar"}
           </Button>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 p-4 sm:p-6">
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               size="sm"
+              className="rounded-lg"
               variant={selectedTipo === "Soporte" ? "default" : "outline"}
               onClick={() => setSelectedTipo("Soporte")}
             >
@@ -376,6 +377,7 @@ export default function ReportesFichasPage() {
             <Button
               type="button"
               size="sm"
+              className="rounded-lg"
               variant={selectedTipo === "Baja" ? "default" : "outline"}
               onClick={() => setSelectedTipo("Baja")}
             >
@@ -502,9 +504,9 @@ export default function ReportesFichasPage() {
 
       {/* VIEW DIALOG */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="bg-white sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Detalle de Ficha</DialogTitle>
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-4xl">
+          <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
+            <DialogTitle className="text-xl font-semibold text-foreground">Detalle de Ficha</DialogTitle>
             <DialogDescription>Vista detallada de la ficha seleccionada.</DialogDescription>
           </DialogHeader>
 

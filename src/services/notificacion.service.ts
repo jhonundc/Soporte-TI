@@ -6,6 +6,9 @@ export type NotificacionRecord = {
   IdReferencia: number;
   IdUsuarioOrigen: number;
   IdUsuarioDestino: number;
+  NombreUsuarioOrigen?: string | null;
+  IdUsuarioRespondio?: number | null;
+  NombreUsuarioRespondio?: string | null;
   Titulo: string;
   Mensaje: string;
   EstadoAprobacion: string;

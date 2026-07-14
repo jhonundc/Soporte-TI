@@ -13,13 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/forms/SearchableSelect";
 import { useEffect } from "react";
 import { notify } from "@/lib/feedback/toast";
 
@@ -197,8 +191,9 @@ export default function SoftwareFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl bg-white max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-3xl">
+        <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Inventario institucional</p>
           <DialogTitle className="text-xl font-semibold">
             {readOnly
               ? "Detalle del Software"
@@ -207,48 +202,30 @@ export default function SoftwareFormModal({
               : "Registrar Software"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 bg-primary/[0.025] px-6 py-6 [&_input]:rounded-xl [&_label]:font-semibold [&_label]:text-primary [&_textarea]:rounded-xl [&_[data-slot=select-trigger]]:rounded-xl">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Catálogo de software *</label>
-              <Select 
+              <SearchableSelect
                 value={watch("IdSoftwareCatalogo")} 
-                onValueChange={(value) => value !== null && setValue("IdSoftwareCatalogo", value)}
+                onValueChange={(value) => setValue("IdSoftwareCatalogo", value)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue>{watch("IdSoftwareCatalogo") || "Selecciona un software del catálogo"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {softwareCatalogo.map((sw: any) => (
-                    <SelectItem key={sw.IdSoftwareCatalogo} value={String(sw.NombreSoftware)}>
-                      {sw.NombreSoftware}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={softwareCatalogo.map((sw: any) => ({ value: String(sw.NombreSoftware), label: String(sw.NombreSoftware) }))}
+                placeholder="Seleccione o busque software"
+              />
               {errors.IdSoftwareCatalogo && (
                 <p className="text-xs text-destructive">{errors.IdSoftwareCatalogo.message}</p>
               )}
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Tipo de software *</label>
-              <Select 
+              <SearchableSelect
                 value={watch("TipoSoftware")} 
-                onValueChange={(value) => value !== null && setValue("TipoSoftware", value)}
+                onValueChange={(value) => setValue("TipoSoftware", value)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue>{watch("TipoSoftware") || "Selecciona un tipo de software"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {tiposSoftware.map((tipo: any) => (
-                    <SelectItem key={tipo.IdTipoSoftware} value={String(tipo.TipoSoftware)}>
-                      {tipo.TipoSoftware}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={tiposSoftware.map((tipo: any) => ({ value: String(tipo.TipoSoftware), label: String(tipo.TipoSoftware) }))}
+                placeholder="Seleccione o busque tipo"
+              />
               {errors.TipoSoftware && (
                 <p className="text-xs text-destructive">{errors.TipoSoftware.message}</p>
               )}
@@ -266,44 +243,26 @@ export default function SoftwareFormModal({
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Proveedor / Entidad *</label>
-              <Select
+              <SearchableSelect
                 value={watch("ProveedorEntidad")}
-                onValueChange={(value) => value !== null && setValue("ProveedorEntidad", value)}
+                onValueChange={(value) => setValue("ProveedorEntidad", value)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue>{watch("ProveedorEntidad") || "Selecciona un proveedor"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {proveedores.map((p: any) => (
-                    <SelectItem key={p.IdProveedor} value={String(p.Proveedor)}>
-                      {p.Proveedor}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={proveedores.map((p: any) => ({ value: String(p.Proveedor), label: String(p.Proveedor) }))}
+                placeholder="Seleccione o busque proveedor"
+              />
               {errors.ProveedorEntidad && (
                 <p className="text-xs text-destructive">{errors.ProveedorEntidad.message}</p>
               )}
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Tipo de licencia *</label>
-              <Select 
+              <SearchableSelect
                 value={watch("TipoLicencia")} 
-                onValueChange={(value) => value !== null && setValue("TipoLicencia", value)}
+                onValueChange={(value) => setValue("TipoLicencia", value)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue>{watch("TipoLicencia") || "Selecciona un tipo de licencia"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {tiposLicencia.map((tipo: any) => (
-                    <SelectItem key={tipo.IdTipoLicencia} value={String(tipo.TipoLicencia)}>
-                      {tipo.TipoLicencia}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={tiposLicencia.map((tipo: any) => ({ value: String(tipo.TipoLicencia), label: String(tipo.TipoLicencia) }))}
+                placeholder="Seleccione o busque licencia"
+              />
               {errors.TipoLicencia && (
                 <p className="text-xs text-destructive">{errors.TipoLicencia.message}</p>
               )}
@@ -323,20 +282,17 @@ export default function SoftwareFormModal({
             </div>
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Estado de licencia *</label>
-              <Select 
+              <SearchableSelect
                 value={watch("EstadoLicencia")} 
-                onValueChange={(value) => value !== null && setValue("EstadoLicencia", value)}
+                onValueChange={(value) => setValue("EstadoLicencia", value)}
                 disabled={readOnly}
-              >
-                <SelectTrigger>
-                  <SelectValue>{watch("EstadoLicencia") || "Selecciona un estado"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Vigente">Vigente</SelectItem>
-                  <SelectItem value="Vencida">Vencida</SelectItem>
-                  <SelectItem value="Suspendida">Suspendida</SelectItem>
-                </SelectContent>
-              </Select>
+                options={[
+                  { value: "Vigente", label: "Vigente" },
+                  { value: "Vencida", label: "Vencida" },
+                  { value: "Suspendida", label: "Suspendida" },
+                ]}
+                placeholder="Seleccione o busque estado"
+              />
               {errors.EstadoLicencia && (
                 <p className="text-xs text-destructive">{errors.EstadoLicencia.message}</p>
               )}
@@ -354,22 +310,13 @@ export default function SoftwareFormModal({
 
           <div className="space-y-1">
             <label className="text-sm font-medium text-foreground">Equipos / asignación</label>
-            <Select
-              value={watch("EquiposUsuariosAsignados")}
-              onValueChange={(value) => value !== null && setValue("EquiposUsuariosAsignados", value)}
+            <SearchableSelect
+              value={watch("EquiposUsuariosAsignados") || ""}
+              onValueChange={(value) => setValue("EquiposUsuariosAsignados", value)}
               disabled={readOnly}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona tipo de asignación" />
-              </SelectTrigger>
-              <SelectContent>
-                {tiposAsignacion.map((t: any) => (
-                  <SelectItem key={t.IdTipoAsignacion} value={String(t.TipoAsignacion)}>
-                    {t.TipoAsignacion}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={tiposAsignacion.map((t: any) => ({ value: String(t.TipoAsignacion), label: String(t.TipoAsignacion) }))}
+              placeholder="Seleccione o busque tipo de asignación"
+            />
           </div>
 
           <div className="space-y-1">
@@ -382,8 +329,8 @@ export default function SoftwareFormModal({
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="secondary" type="button" onClick={() => onOpenChange(false)}>
+          <div className="flex justify-end gap-2 border-t border-primary/10 pt-4">
+            <Button variant="secondary" type="button" className="rounded-xl" onClick={() => onOpenChange(false)}>
               Cerrar
             </Button>
             {!readOnly && (

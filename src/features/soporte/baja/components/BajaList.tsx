@@ -7,13 +7,6 @@ import { TableRowActions, TableActionButton } from "@/components/data-display/Ta
 import { FilterBar, FilterField } from "@/components/forms/FilterBar";
 import { IconInput } from "@/components/forms/IconInput";
 import { SearchableSelect } from "@/components/forms/SearchableSelect";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Edit, Eye, Printer, Search, Trash2 } from "lucide-react";
 import {
   getCondicionBadgeClass,
@@ -163,6 +156,24 @@ export function BajaList({
         ),
       },
       {
+        id: "estadoAprobacion",
+        header: "Aprobación",
+        cell: ({ row }) => {
+          const status = String(row.original.EstadoAprobacion || "PENDIENTE").toUpperCase();
+          const className =
+            status === "APROBADA"
+              ? "bg-success/10 text-success ring-success/20"
+              : status === "RECHAZADA"
+                ? "bg-destructive/10 text-destructive ring-destructive/20"
+                : "bg-warning/10 text-warning ring-warning/20";
+          return (
+            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${className}`}>
+              {status}
+            </span>
+          );
+        },
+      },
+      {
         accessorKey: "Responsable",
         header: "Responsable",
         cell: ({ row }) => (
@@ -241,42 +252,34 @@ export function BajaList({
           />
         </FilterField>
         <FilterField label="Condición" htmlFor="filter-condicion-baja">
-          <Select
-            value={filterCondicion || null}
-            onValueChange={(value) => onFilterCondicionChange(value ?? "")}
-          >
-            <SelectTrigger id="filter-condicion-baja" className="w-full">
-              <SelectValue placeholder="Seleccione condición" />
-            </SelectTrigger>
-            <SelectContent>
-              {condiciones?.map((condicion) =>
-                condicion.Condicion ? (
-                  <SelectItem key={condicion.IdCondicion} value={condicion.Condicion}>
-                    {condicion.Condicion}
-                  </SelectItem>
-                ) : null
-              )}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            id="filter-condicion-baja"
+            value={filterCondicion}
+            onValueChange={onFilterCondicionChange}
+            options={(condiciones ?? [])
+              .filter((condicion) => Boolean(condicion.Condicion))
+              .map((condicion) => {
+                const nombre = String(condicion.Condicion ?? "");
+                return { value: nombre, label: nombre };
+              })}
+            placeholder="Seleccione o busque condición"
+            emptyMessage="No hay condiciones que coincidan"
+          />
         </FilterField>
         <FilterField label="Estado del bien" htmlFor="filter-estado-baja">
-          <Select
-            value={filterEstado || null}
-            onValueChange={(value) => onFilterEstadoChange(value ?? "")}
-          >
-            <SelectTrigger id="filter-estado-baja" className="w-full">
-              <SelectValue placeholder="Seleccione estado" />
-            </SelectTrigger>
-            <SelectContent>
-              {estados?.map((estado) =>
-                estado.EstadoBien ? (
-                  <SelectItem key={estado.IdEstadoBien} value={estado.EstadoBien}>
-                    {estado.EstadoBien}
-                  </SelectItem>
-                ) : null
-              )}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            id="filter-estado-baja"
+            value={filterEstado}
+            onValueChange={onFilterEstadoChange}
+            options={(estados ?? [])
+              .filter((estado) => Boolean(estado.EstadoBien))
+              .map((estado) => {
+                const nombre = String(estado.EstadoBien ?? "");
+                return { value: nombre, label: nombre };
+              })}
+            placeholder="Seleccione o busque estado"
+            emptyMessage="No hay estados que coincidan"
+          />
         </FilterField>
       </FilterBar>
 
