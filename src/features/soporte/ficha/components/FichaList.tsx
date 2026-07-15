@@ -7,7 +7,7 @@ import { TableRowActions, TableActionButton } from "@/components/data-display/Ta
 import { FilterBar, FilterField } from "@/components/forms/FilterBar";
 import { IconInput } from "@/components/forms/IconInput";
 import { SearchableSelect } from "@/components/forms/SearchableSelect";
-import { Edit, Eye, Power, Printer, Search, Trash2 } from "lucide-react";
+import { Edit, Eye, Printer, Search, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ESTADOS_TICKET } from "@/features/soporte/ficha/hooks/useFichaList";
 import { sessionService } from "@/services/session.service";
@@ -196,9 +196,6 @@ export function FichaList({
                   <Edit className="size-4" />
                 </TableActionButton>
               )}
-              <TableActionButton actionVariant="warning" title="Desactivar" aria-label="Desactivar">
-                <Power className="size-4" />
-              </TableActionButton>
               {canModify && (
                 <TableActionButton
                   actionVariant="destructive"

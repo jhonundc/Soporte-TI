@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import {
   Gauge,
   Boxes,
-  Network,
   Headset,
   BellRing,
   ChartNoAxesCombined,
@@ -41,7 +40,6 @@ const adminMenuItems: SidebarMenuItem[] = [
       { label: "Software", href: "/inventario/software" },
     ],
   },
-  { icon: Network, label: "Redes", href: "/redes" },
   {
     icon: Headset,
     label: "Soporte",
@@ -49,7 +47,7 @@ const adminMenuItems: SidebarMenuItem[] = [
     subItems: [
       { label: "Generar Ficha Soporte", href: "/soporte/ficha" },
       { label: "Generar Ficha de Baja", href: "/soporte/baja" },
-      { label: "Componentes por Área", href: "/soporte/componentes-por-area" },
+      { label: "Registrar Acta de Entrega", href: "/soporte/acta-entrega" },
     ],
   },
   {
@@ -59,6 +57,7 @@ const adminMenuItems: SidebarMenuItem[] = [
     subItems: [
       { label: "Fichas Soporte", href: "/centro-notificaciones/fichas-soporte" },
       { label: "Fichas Baja", href: "/centro-notificaciones/fichas-baja" },
+      { label: "Actas de Entrega", href: "/centro-notificaciones/actas-entrega" },
     ],
   },
   {
@@ -107,7 +106,6 @@ const supportMenuItems: SidebarMenuItem[] = [
       { label: "Software", href: "/inventario/software" },
     ],
   },
-  { icon: Network, label: "Redes", href: "/redes" },
   {
     icon: Headset,
     label: "Soporte",
@@ -115,7 +113,7 @@ const supportMenuItems: SidebarMenuItem[] = [
     subItems: [
       { label: "Generar Ficha Soporte", href: "/soporte/ficha" },
       { label: "Generar Ficha de Baja", href: "/soporte/baja" },
-      { label: "Componentes por Área", href: "/soporte/componentes-por-area" },
+      { label: "Registrar Acta de Entrega", href: "/soporte/acta-entrega" },
     ],
   },
   {
@@ -125,6 +123,7 @@ const supportMenuItems: SidebarMenuItem[] = [
     subItems: [
       { label: "Fichas Soporte", href: "/centro-notificaciones/fichas-soporte" },
       { label: "Fichas Baja", href: "/centro-notificaciones/fichas-baja" },
+      { label: "Actas de Entrega", href: "/centro-notificaciones/actas-entrega" },
     ],
   },
   {

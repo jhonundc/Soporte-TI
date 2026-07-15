@@ -35,6 +35,9 @@ type Estadisticas = {
     totalSoporteProceso: number;
     totalSoporteAtendido: number;
     totalSoporteDerivado: number;
+    totalActasEntrega: number;
+    totalActasEntregadas: number;
+    totalActasDevueltas: number;
   };
   fichasPorArea: Record<string, number>;
   soportePorMes: Array<{ label: string; Fichas: number }>;
@@ -96,6 +99,9 @@ export default function DashboardPage() {
     totalSoporteProceso: 0,
     totalSoporteAtendido: 0,
     totalSoporteDerivado: 0,
+    totalActasEntrega: 0,
+    totalActasEntregadas: 0,
+    totalActasDevueltas: 0,
   };
 
   const totals = data?.totales ?? defaultTotals;
@@ -108,12 +114,14 @@ export default function DashboardPage() {
           { title: "Pendientes", value: formatNumber(totals.totalSoportePendiente), icon: Clock, accent: "warning" as const },
           { title: "En Progreso", value: formatNumber(totals.totalSoporteProceso), icon: Wrench, accent: "primary" as const },
           { title: "Atendidas", value: formatNumber(totals.totalSoporteAtendido), icon: CheckCircle, accent: "success" as const },
+          { title: "Actas de entrega", value: formatNumber(totals.totalActasEntrega), icon: ClipboardList, accent: "primary" as const, breakdown: [{ label: "Entregadas", value: formatNumber(totals.totalActasEntregadas), tone: "success" as const }, { label: "Devueltas", value: formatNumber(totals.totalActasDevueltas), tone: "warning" as const }] },
         ]
       : [
           { title: "Total Equipos", value: formatNumber(totals.totalBienes), icon: Boxes, accent: "primary" as const },
           { title: "Operativos", value: formatNumber(totals.totalBienesOperativos), icon: CheckCircle, accent: "success" as const },
           { title: "Inoperativos", value: formatNumber(totals.totalBienesInoperativos), icon: XCircle, accent: "destructive" as const },
           { title: "Dados de Baja", value: formatNumber(totals.totalBajas), icon: Trash2, accent: "muted" as const },
+          { title: "Actas de entrega", value: formatNumber(totals.totalActasEntrega), icon: ClipboardList, accent: "primary" as const, breakdown: [{ label: "Entregadas", value: formatNumber(totals.totalActasEntregadas), tone: "success" as const }, { label: "Devueltas", value: formatNumber(totals.totalActasDevueltas), tone: "warning" as const }] },
         ]
     : [];
 
@@ -160,6 +168,12 @@ export default function DashboardPage() {
           description: "Gestiona actividades técnicas.",
           icon: Wrench,
         },
+        {
+          href: "/soporte/acta-entrega",
+          title: "Nueva acta",
+          description: "Registra una entrega de bienes.",
+          icon: ClipboardList,
+        },
       ]
     : [
         {
@@ -178,6 +192,12 @@ export default function DashboardPage() {
           href: "/centro-notificaciones/fichas-soporte",
           title: "Centro de fichas",
           description: "Revisa solicitudes y novedades.",
+          icon: ClipboardList,
+        },
+        {
+          href: "/soporte/acta-entrega",
+          title: "Nueva acta",
+          description: "Registra una entrega de bienes.",
           icon: ClipboardList,
         },
       ];
@@ -238,7 +258,7 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
             {stats.map((stat, index) => (
               <motion.div
                 key={stat.title}
@@ -251,6 +271,7 @@ export default function DashboardPage() {
                   value={stat.value}
                   icon={stat.icon}
                   accent={stat.accent}
+                  breakdown={"breakdown" in stat ? stat.breakdown : undefined}
                 />
               </motion.div>
             ))}
@@ -262,7 +283,7 @@ export default function DashboardPage() {
                 <h2 className="text-base font-semibold text-foreground">Accesos rápidos</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Continúa con las tareas más frecuentes.</p>
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {quickActions.map((action) => {
                   const Icon = action.icon;
                   return (

@@ -325,8 +325,18 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
       return res.json();
     },
     onSuccess: (data) => {
-      setResults(Array.isArray(data?.resultados) ? data.resultados : []);
-      setSummary(data?.resumen ?? { Insertados: 0, Errores: 0 });
+      const importResults: ImportResult[] = Array.isArray(data?.resultados) ? data.resultados : [];
+      const errorRows = new Set(
+        importResults.filter((item) => item.Estado === "ERROR").map((item) => item.Fila)
+      );
+      const insertedRows = new Set(
+        importResults.filter((item) => item.Estado === "OK").map((item) => item.Fila)
+      );
+      setResults(importResults);
+      setSummary({
+        Insertados: insertedRows.size || Number(data?.resumen?.Insertados || 0),
+        Errores: errorRows.size,
+      });
       if (typeof onImported === "function") onImported();
     },
     onError: (error: any) => {
@@ -488,7 +498,6 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "Inventario TI";
       workbook.created = new Date();
-
       const wsPlantilla = workbook.addWorksheet("Plantilla_Bienes", {
         views: [{ state: "frozen", ySplit: 3 }],
       });
@@ -900,11 +909,11 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                       <tr key={`${r.Fila}-${r.CodigoInventario}`} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
                         <td className="px-2 py-1">{r.Fila}</td>
                         <td className={`px-2 py-1 ${r.flags.codigoInventario ? "text-red-600 font-semibold" : ""}`}>
-                          {isFixMode && r.flags.codigoInventario ? (
+                          {isFixMode ? (
                             <Input
                               value={codigoInventarioValue}
                               onChange={(e) => updateRowField(r.Fila, "CodigoInventario", e.target.value)}
-                              className="h-7 border-red-300 text-red-700"
+                              className={r.flags.codigoInventario ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}
                             />
                           ) : (
                             codigoInventarioValue || "-"
@@ -918,7 +927,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                                   value={categoriaValue || "__empty__"}
                                   onValueChange={(val) => updateRowField(r.Fila, "Categoria", val === "__empty__" ? "" : (val ?? ""))}
                                 >
-                                  <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                  <SelectTrigger className={r.flags.categoria ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                     <SelectValue placeholder="Seleccionar" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -932,7 +941,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <Button
                                 type="button"
                                 variant="outline"
-                                className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                className={r.flags.categoria ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                 disabled={isCreatingCatalog}
                                 onClick={() => void createCatalogOption("categoria", r.Fila, "Categoria")}
                                 title="Agregar categoría"
@@ -952,7 +961,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                                   value={marcaValue || "__empty__"}
                                   onValueChange={(val) => updateRowField(r.Fila, "Marca", val === "__empty__" ? "" : (val ?? ""))}
                                 >
-                                  <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                  <SelectTrigger className={r.flags.marca ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                     <SelectValue placeholder="Seleccionar" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -966,7 +975,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <Button
                                 type="button"
                                 variant="outline"
-                                className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                className={r.flags.marca ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                 disabled={isCreatingCatalog}
                                 onClick={() => void createCatalogOption("marca", r.Fila, "Marca")}
                                 title="Agregar marca"
@@ -986,7 +995,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                                   value={areaValue || "__empty__"}
                                   onValueChange={(val) => updateRowField(r.Fila, "Area", val === "__empty__" ? "" : (val ?? ""))}
                                 >
-                                  <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                  <SelectTrigger className={r.flags.area ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                     <SelectValue placeholder="Seleccionar" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1000,7 +1009,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <Button
                                 type="button"
                                 variant="outline"
-                                className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                className={r.flags.area ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                 disabled={isCreatingCatalog}
                                 onClick={() => void createCatalogOption("area", r.Fila, "Area")}
                                 title="Agregar área"
@@ -1017,7 +1026,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                             <div className="flex items-center gap-1">
                               <div className="min-w-[130px] flex-1">
                                 <Select value={condicionValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "Condicion", val === "__empty__" ? "" : (val ?? ""))}>
-                                  <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                  <SelectTrigger className={r.flags.condicion ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                     <SelectValue placeholder="Seleccionar" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1031,7 +1040,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <Button
                                 type="button"
                                 variant="outline"
-                                className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                className={r.flags.condicion ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                 disabled={isCreatingCatalog}
                                 onClick={() => void createCatalogOption("condicion", r.Fila, "Condicion")}
                                 title="Agregar condición"
@@ -1044,9 +1053,9 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                           )}
                         </td>
                         <td className={`px-2 py-1 ${r.flags.estado ? "text-red-600 font-semibold" : ""}`}>
-                          {isFixMode && r.flags.estado ? (
+                          {isFixMode ? (
                             <Select value={estadoValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "EstadoBien", val === "__empty__" ? "" : (val ?? ""))}>
-                              <SelectTrigger className="h-7 border-red-300 text-red-700">
+                              <SelectTrigger className={r.flags.estado ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                 <SelectValue placeholder="Seleccionar" />
                               </SelectTrigger>
                               <SelectContent>
@@ -1096,9 +1105,9 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                     </tr>
                   </thead>
                   <tbody>
-                    {results.map((r, idx) => (
+                    {resultRows.map((r) => (
                       <tr
-                        key={`${r.Fila}-${r.CodigoInventario || "-"}-${idx}`}
+                        key={`resultado-${r.Fila}`}
                         className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60"
                       >
                         <td className="px-2 py-1">{r.Fila}</td>

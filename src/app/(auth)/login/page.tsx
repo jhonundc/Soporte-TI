@@ -135,7 +135,7 @@ export default function LoginPage() {
               </section>
 
               <section
-                className="border-t border-slate-200/70 bg-[#eef1f4] p-8 sm:p-9 lg:border-t-0 lg:border-l lg:p-10"
+                className="border-t border-slate-200/70 bg-[#eef1f4] p-8 dark:bg-card sm:p-9 lg:border-t-0 lg:border-l lg:p-10"
                 aria-label="Inicio de sesión"
               >
                 <div className="w-full max-w-sm space-y-6">

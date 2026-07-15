@@ -57,10 +57,10 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
       }}
     >
       <FormDialogContent size="xl" className="max-h-[92vh] overflow-y-auto p-0">
-        <div className="border-b border-destructive/10 bg-gradient-to-r from-destructive/10 via-destructive/5 to-card px-6 py-5 sm:px-8">
+        <div className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5 sm:px-8">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-destructive">Registro de baja</p>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Registro de baja</p>
               <DialogHeader className="space-y-1 text-left">
                 <DialogTitle>
                   {editingBaja ? "Editar Ficha de Baja" : "Nueva Ficha de Baja"}
@@ -70,11 +70,11 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                 </DialogDescription>
               </DialogHeader>
             </div>
-            <div className="rounded-xl border border-destructive/15 bg-card/80 px-4 py-3 text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
+            <div className="rounded-xl border border-primary/10 bg-card/80 px-4 py-3 text-sm text-muted-foreground shadow-[var(--shadow-soft)]">
               <span className="block text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                 Estado
               </span>
-              <span className="font-semibold text-destructive">
+              <span className="font-semibold text-primary">
                 {editingBaja ? "Edición" : "Nuevo registro"}
               </span>
             </div>
@@ -101,7 +101,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                   Número, unidad orgánica, responsable, dependencia y ambiente.
                 </p>
               </div>
-              <span className="rounded-full bg-destructive/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-destructive">
+              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                 Institucional
               </span>
             </div>
@@ -174,7 +174,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                         key={bien.IdBien}
                         type="button"
                         onClick={() => selectBien(bien)}
-                        className={`w-full border-b border-slate-100 px-3 py-3 text-left transition hover:bg-muted/30 ${String(watch("IdBien")) === String(bien.IdBien) ? "bg-destructive/5" : ""}`}
+                        className={`w-full border-b border-slate-100 px-3 py-3 text-left transition hover:bg-muted/30 ${String(watch("IdBien")) === String(bien.IdBien) ? "bg-primary/5" : ""}`}
                       >
                         <div className="text-sm font-semibold text-slate-800">
                           {bien.Descripcion || "Sin descripción"}
@@ -210,7 +210,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
             <div className="mt-4 rounded-2xl border border-border bg-muted/30 p-4 text-xs text-foreground shadow-sm">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-semibold text-slate-600">Detalle del activo seleccionado</span>
-                <span className="rounded-full bg-destructive/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-destructive">
+                <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-primary">
                   Resumen
                 </span>
               </div>
@@ -274,7 +274,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                         value={item}
                         checked={watch("TipoBien") === item}
                         onChange={(e) => setValue("TipoBien", e.target.value)}
-                        className="h-4 w-4 border-slate-300 text-destructive focus:ring-destructive"
+                        className="h-4 w-4 border-slate-300 text-primary focus:ring-primary"
                       />
                       {item}
                     </label>
@@ -301,7 +301,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                           );
                           handleSelectField("IdEstadoBien", "");
                         }}
-                        className="h-4 w-4 border-slate-300 text-destructive focus:ring-destructive"
+                        className="h-4 w-4 border-slate-300 text-primary focus:ring-primary"
                       />
                       {item}
                     </label>
@@ -326,7 +326,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
                           value={String(estadoId)}
                           checked={String(watch("IdEstadoBien") ?? formData.IdEstadoBien) === String(estadoId)}
                           onChange={(e) => handleSelectField("IdEstadoBien", e.target.value)}
-                          className="h-4 w-4 border-slate-300 text-destructive focus:ring-destructive"
+                          className="h-4 w-4 border-slate-300 text-primary focus:ring-primary"
                         />
                         {item}
                       </label>
@@ -386,7 +386,7 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
             >
               Cancelar
             </Button>
-            <Button type="submit" variant="destructive" size="lg" disabled={savePending}>
+            <Button type="submit" size="lg" disabled={savePending}>
               {savePending ? "Guardando..." : "Guardar Ficha de Baja"}
             </Button>
           </div>

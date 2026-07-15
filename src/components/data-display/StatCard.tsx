@@ -18,6 +18,11 @@ interface StatCardProps {
   icon: LucideIcon;
   accent?: StatAccent;
   className?: string;
+  breakdown?: Array<{
+    label: string;
+    value: string | number;
+    tone?: "warning" | "success" | "destructive";
+  }>;
 }
 
 export function StatCard({
@@ -26,6 +31,7 @@ export function StatCard({
   icon: Icon,
   accent = "primary",
   className,
+  breakdown,
 }: StatCardProps) {
   return (
     <Card
@@ -34,7 +40,8 @@ export function StatCard({
         className
       )}
     >
-      <CardContent className="flex items-center justify-between p-5">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
         <div className="min-w-0">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             {title}
@@ -51,6 +58,22 @@ export function StatCard({
         >
           <Icon className="size-5" aria-hidden="true" />
         </div>
+        </div>
+        {breakdown?.length ? (
+          <div className={cn("mt-4 grid gap-2 border-t border-border pt-3", breakdown.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
+            {breakdown.map((item) => (
+              <div key={item.label} className="min-w-0 text-center">
+                <p className={cn(
+                  "text-lg font-semibold leading-none",
+                  item.tone === "success" && "text-success",
+                  item.tone === "warning" && "text-warning",
+                  item.tone === "destructive" && "text-destructive"
+                )}>{item.value}</p>
+                <p className="mt-1.5 truncate text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

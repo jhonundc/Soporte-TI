@@ -140,6 +140,101 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Compatibilidad para vistas antiguas que todavía usan colores claros fijos. */
+@media screen {
+  .dark .bg-white,
+  .dark .bg-slate-50,
+  .dark .bg-gray-50 {
+    background-color: var(--card) !important;
+  }
+
+  .dark .bg-slate-50\/60,
+  .dark .bg-slate-100,
+  .dark .bg-gray-100 {
+    background-color: var(--surface) !important;
+  }
+
+  .dark .bg-slate-200,
+  .dark .bg-slate-200\/70 {
+    background-color: var(--muted) !important;
+  }
+
+  .dark .text-black,
+  .dark .text-slate-900,
+  .dark .text-slate-800,
+  .dark .text-gray-900,
+  .dark .text-gray-800 {
+    color: var(--foreground) !important;
+  }
+
+  .dark .text-slate-700,
+  .dark .text-slate-600,
+  .dark .text-gray-700,
+  .dark .text-gray-600 {
+    color: var(--muted-foreground) !important;
+  }
+
+  .dark .border-slate-100,
+  .dark .border-slate-200,
+  .dark .border-slate-200\/70,
+  .dark .border-slate-200\/90,
+  .dark .border-slate-300,
+  .dark .border-gray-100,
+  .dark .border-gray-200,
+  .dark .border-gray-300 {
+    border-color: var(--border) !important;
+  }
+
+  .dark .bg-red-50,
+  .dark .bg-red-100 {
+    background-color: color-mix(in oklch, var(--destructive) 18%, var(--card)) !important;
+  }
+
+  .dark .bg-amber-50,
+  .dark .bg-amber-100 {
+    background-color: color-mix(in oklch, var(--warning) 16%, var(--card)) !important;
+  }
+
+  .dark .bg-emerald-50,
+  .dark .bg-emerald-100,
+  .dark .bg-green-100 {
+    background-color: color-mix(in oklch, var(--success) 16%, var(--card)) !important;
+  }
+
+  .dark .bg-blue-50 {
+    background-color: color-mix(in oklch, var(--primary) 16%, var(--card)) !important;
+  }
+
+  .dark .text-red-600,
+  .dark .text-red-700,
+  .dark .text-red-800 {
+    color: oklch(0.78 0.16 25) !important;
+  }
+
+  .dark .text-amber-700,
+  .dark .text-amber-800 {
+    color: oklch(0.82 0.13 80) !important;
+  }
+
+  .dark .text-emerald-600,
+  .dark .text-emerald-700,
+  .dark .text-emerald-800,
+  .dark .text-green-800 {
+    color: oklch(0.78 0.13 155) !important;
+  }
+
+  .dark .text-blue-600,
+  .dark .text-blue-700 {
+    color: oklch(0.78 0.12 250) !important;
+  }
+
+  .dark input,
+  .dark textarea,
+  .dark select {
+    color-scheme: dark;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

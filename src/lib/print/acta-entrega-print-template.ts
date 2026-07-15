@@ -1,0 +1,30 @@
+import { openPrintWindow } from "./open-print-window";
+import type { ActaEntrega } from "@/features/soporte/acta-entrega/types";
+
+const esc = (value: unknown) => String(value ?? "").replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] || char);
+const longDate = (value: string) => new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "long", year: "numeric" }).format(new Date(value));
+const exactTime = (value: string) => new Intl.DateTimeFormat("es-PE", { hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(value));
+
+const conditions = [
+  "El equipo de cómputo se entrega en buen estado de funcionamiento.",
+  "El usuario receptor se compromete a utilizar el equipo exclusivamente para labores institucionales.",
+  "El usuario es responsable de la custodia, conservación y uso adecuado del equipo asignado.",
+  "Cualquier falla, incidente o traslado del equipo deberá ser comunicado oportunamente a la Unidad de Estadística e Informática.",
+  "En caso de cese de funciones, rotación o cambio de dependencia, el equipo deberá ser devuelto mediante la correspondiente acta de entrega.",
+];
+
+export function buildActaEntregaPrintHtml(acta: ActaEntrega) {
+  const items = (acta.Detalles || []).map((bien, index) => `<tr><td>${String(index + 1).padStart(2, "0")}</td><td>${esc(bien.Descripcion || "-")}</td><td>${esc(bien.Marca || "-")}</td><td>${esc(bien.Modelo || "-")}</td><td>${esc(bien.NumeroSerie || "-")}</td><td>${esc(bien.CodigoPatrimonial || "-")}</td></tr>`).join("");
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Acta ${esc(acta.NumeroActa)}</title><style>
+  @page{size:A4 portrait;margin:13mm 14mm}*{box-sizing:border-box}html,body{margin:0;padding:0;color:#000;font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5}.page{width:100%;min-height:271mm;position:relative}.page-break{break-before:page;page-break-before:always}h1{text-align:center;font-size:16px;margin:4mm 0 9mm;font-weight:700}p{margin:0 0 9px}.acta{font-weight:700;font-size:11.5px}.intro{text-align:justify;margin-bottom:20px;line-height:1.55}.section{margin-top:21px}.section h2{font-size:11px;margin:0 0 13px;font-weight:700}.line{display:inline-block;border-bottom:1px solid #000;min-width:340px;height:16px;vertical-align:bottom}.label{font-weight:700}.data p{margin:5px 0}.data .line{min-width:405px}.service-line{min-width:325px;text-align:center}table{width:100%;border-collapse:collapse}.equipment th,.equipment td{border:1px solid #000;padding:8px 7px;text-align:left;font-size:10px;height:31px}.equipment th{font-weight:700;height:34px}.equipment th:first-child,.equipment td:first-child{width:7%}.conditions{margin:14px 0 0 24px;padding-left:18px}.conditions li{padding-left:10px;margin-bottom:15px;text-align:justify;line-height:1.5}.page-two{padding-top:16mm}.observations{min-height:70px;white-space:pre-wrap;text-align:justify;line-height:1.6}.signatures{margin-top:40px;width:100%}.signatures th,.signatures td{border:1px solid #000;padding:9px;text-align:left;vertical-align:top;font-size:10px}.signatures th{height:32px}.signatures .sign-space{height:105px}.signatures .name{height:38px}.signatures .role{height:65px}.signatures .dni{height:36px}
+  </style></head><body>
+  <article class="page"><h1>ACTA DE ENTREGA Y RECEPCIÓN DE EQUIPO DE CÓMPUTO</h1><p class="acta">ACTA N.° <span class="line">${esc(acta.NumeroActa)}</span></p><p class="intro">En el distrito de San Luis, Provincia de Cañete, siendo las ${esc(exactTime(acta.FechaRegistro || acta.FechaEntrega))} horas del día ${esc(longDate(acta.FechaEntrega))}, en las instalaciones del Hospital Regional de Cañete “Rezola”, se procede a realizar la entrega y recepción del equipo de cómputo que se detalla a continuación:</p>
+  <section class="section data"><h2>I. DATOS DEL ENTREGANTE</h2><p><span class="label">Nombre:</span> <span class="line">${esc(acta.NombreCreador || "")}</span></p><p><span class="label">Cargo:</span> ${esc(acta.CargoCreador || "Jefe de la Unidad de Estadística e Informática")}</p><p><span class="label">Dependencia:</span> Unidad de Estadística e Informática</p></section>
+  <section class="section data"><h2>II. DATOS DEL RECEPTOR</h2><p><span class="label">Nombre:</span> <span class="line">${esc(acta.NombreReceptor)}</span></p><p><span class="label">Cargo:</span> <span class="line">${esc(acta.CargoReceptor || "")}</span></p><p><span class="label">Servicio/Área:</span> <span class="line service-line">${esc(acta.AreaReceptor || acta.ServicioArea || "")}</span></p></section>
+  <section class="section"><h2>III. DESCRIPCIÓN DEL EQUIPO ENTREGADO</h2><table class="equipment"><thead><tr><th>Ítem</th><th>Descripción</th><th>Marca</th><th>Modelo</th><th>N.° Serie</th><th>Código Patrimonial</th></tr></thead><tbody>${items || '<tr><td colspan="6">Sin bienes registrados</td></tr>'}</tbody></table></section>
+  <section class="section"><h2>IV. CONDICIONES DE ENTREGA</h2><ol class="conditions">${conditions.map((condition) => `<li>${esc(condition)}</li>`).join("")}</ol></section></article>
+  <article class="page page-break page-two"><section class="section"><h2>V. OBSERVACIONES</h2><div class="observations">${esc(acta.Observaciones || "No habiendo observaciones adicionales, ambas partes firman la presente acta en señal de conformidad.")}</div></section><table class="signatures"><thead><tr><th>ENTREGUÉ CONFORME</th><th>RECIBÍ CONFORME</th></tr></thead><tbody><tr><td class="sign-space"></td><td class="sign-space"></td></tr><tr><td class="name">Nombre: ${esc(acta.NombreCreador || "")}</td><td class="name">Nombre: ${esc(acta.NombreReceptor)}</td></tr><tr><td class="role">${esc(acta.CargoCreador || "Jefe de la Unidad de Estadística e Informática")}</td><td class="role">Cargo: ${esc(acta.CargoReceptor || "")}</td></tr><tr><td class="dni">DNI:</td><td class="dni">DNI:</td></tr></tbody></table></article>
+  </body></html>`;
+}
+
+export function openActaEntregaPrintWindow(acta: ActaEntrega) { return openPrintWindow(buildActaEntregaPrintHtml(acta), `ActaEntrega_${acta.NumeroActa}`); }

@@ -33,14 +33,14 @@ export function BajaViewDialog({ open, onOpenChange, baja, bienes }: BajaViewDia
       <DialogPrintStyles />
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-5xl print:max-h-none print:border-none print:p-0 print:shadow-none">
-          <DialogHeader className="border-b border-destructive/10 bg-gradient-to-r from-destructive/10 via-destructive/5 to-card px-6 py-5 print:hidden">
+          <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5 print:hidden">
             <DialogTitle>Detalle de ficha de baja</DialogTitle>
           </DialogHeader>
 
           {baja ? (
             <div
               id="printable-baja"
-              className="space-y-6 bg-destructive/[0.035] p-6 text-slate-800 [&_h3]:!rounded-md [&_h3]:!bg-destructive/10 [&_h3]:!text-destructive print:bg-white print:p-0 print:[&_h3]:!rounded-t print:[&_h3]:!bg-slate-800 print:[&_h3]:!text-white"
+              className="space-y-6 bg-primary/[0.018] p-6 text-slate-800 [&_h3]:!rounded-md [&_h3]:!bg-primary/10 [&_h3]:!text-primary print:bg-white print:p-0 print:[&_h3]:!rounded-t print:[&_h3]:!bg-slate-800 print:[&_h3]:!text-white"
             >
               <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4">
                 <div className="text-left">
@@ -64,7 +64,7 @@ export function BajaViewDialog({ open, onOpenChange, baja, bienes }: BajaViewDia
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 rounded-xl border border-destructive/15 bg-card p-4 text-[11px] text-slate-700 shadow-sm sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 rounded-xl border border-primary/10 bg-card p-4 text-[11px] text-slate-700 shadow-sm sm:grid-cols-3">
                 <div>
                   <span className="block font-bold text-slate-500">RESPONSABLE DEL BIEN</span>
                   <span className="text-xs font-medium text-slate-800">
@@ -220,7 +220,7 @@ export function BajaViewDialog({ open, onOpenChange, baja, bienes }: BajaViewDia
             </div>
           ) : null}
 
-          <div className="flex flex-wrap justify-end gap-3 border-t border-destructive/10 bg-muted/20 px-6 py-4 print:hidden">
+          <div className="flex flex-wrap justify-end gap-3 border-t border-primary/10 bg-muted/20 px-6 py-4 print:hidden">
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}

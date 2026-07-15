@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Sparkles, Eye, Edit, Trash2, Search, FileDown, Headset, Clock, CheckCircle, CircleX, Printer, FileSpreadsheet } from "lucide-react";
+import { Download, Sparkles, Eye, Edit, Trash2, Search, FileDown, Headset, Printer, FileSpreadsheet, ClipboardList } from "lucide-react";
 import { useSession } from "@/lib/hooks/useSession";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/data-display/StatCard";
@@ -23,6 +23,9 @@ import { exportFichaSoporteExcel } from "@/lib/export/ficha-soporte-excel";
 import { exportFichaBajaExcel } from "@/lib/export/ficha-baja-excel";
 import { printFichaSoporte } from "@/lib/print/ficha-print-template";
 import { openBajaPrintWindow } from "@/lib/print/baja-print-template";
+import { openActaEntregaPrintWindow } from "@/lib/print/acta-entrega-print-template";
+import { exportActaEntregaExcel } from "@/lib/export/acta-entrega-excel";
+import { exportStyledReportExcel } from "@/lib/export/styled-report-excel";
 
 export default function ReportesFichasPage() {
   const router = useRouter();
@@ -50,6 +53,7 @@ export default function ReportesFichasPage() {
     fechaRegistro: row.FechaRegistro,
     bien: row.Bien || null,
     estado: row.Estado?.EstadoBien || "",
+    estadoAprobacion: row.EstadoAprobacion || "PENDIENTE",
     estadoTicket: row.EstadoTicket || "",
     trabajosRealizados: row.TrabajosRealizados || "",
     diagnostico: row.Diagnostico || "",
@@ -75,6 +79,7 @@ export default function ReportesFichasPage() {
     fechaRegistro: row.FechaRegistro,
     bien: row.Bien || null,
     estado: row.Estado?.EstadoBien || "",
+    estadoAprobacion: row.EstadoAprobacion || "PENDIENTE",
     causalBaja: row.CausalBaja || "",
     fundamentacion: row.Fundamentacion || "",
     recomendacion: row.Recomendacion || "",
@@ -83,12 +88,51 @@ export default function ReportesFichasPage() {
     raw: row,
   });
 
+  const normalizeActa = (row: any) => ({
+    id: row.IdActaEntrega,
+    tipo: "Acta de entrega",
+    numero: row.NumeroActa,
+    responsable: row.NombreReceptor,
+    dependencia: row.AreaReceptor,
+    ambiente: row.ServicioArea,
+    fechaRegistro: row.FechaRegistro || row.FechaEntrega,
+    estado: row.EstadoActa,
+    usuario: row.NombreCreador,
+    bien: { Descripcion: `${row.Detalles?.length || row.CantidadBienes || 0} bien(es)` },
+    Bien: row.Detalles?.[0] || null,
+    raw: row,
+  });
+
   const [searchTerm, setSearchTerm] = useState("");
+  const bajaApprovalCounts = useMemo(() => {
+    const bajas = records.filter((record) => record.tipo === "Baja");
+    return {
+      pendientes: bajas.filter((record) => String(record.estadoAprobacion || "PENDIENTE").toUpperCase() === "PENDIENTE").length,
+      aceptadas: bajas.filter((record) => ["APROBADA", "APROBADO", "ACEPTADA", "ACEPTADO"].includes(String(record.estadoAprobacion || "").toUpperCase())).length,
+      rechazadas: bajas.filter((record) => ["RECHAZADA", "RECHAZADO"].includes(String(record.estadoAprobacion || "").toUpperCase())).length,
+    };
+  }, [records]);
+  const supportApprovalCounts = useMemo(() => {
+    const fichas = records.filter((record) => record.tipo === "Soporte");
+    return {
+      pendientes: fichas.filter((record) => String(record.estadoAprobacion || "PENDIENTE").toUpperCase() === "PENDIENTE").length,
+      aceptadas: fichas.filter((record) => ["APROBADA", "APROBADO", "ACEPTADA", "ACEPTADO"].includes(String(record.estadoAprobacion || "").toUpperCase())).length,
+      rechazadas: fichas.filter((record) => ["RECHAZADA", "RECHAZADO"].includes(String(record.estadoAprobacion || "").toUpperCase())).length,
+    };
+  }, [records]);
 
   const StatusBadge = ({ status }: { status?: string }) => {
     const s = (status || "").toLowerCase();
     const classes = s.includes("pend")
       ? "bg-warning/10 text-warning ring-warning/20"
+      : s.includes("entregada")
+        ? "bg-success/10 text-success ring-success/20"
+        : s.includes("devuelta")
+          ? "bg-warning/10 text-warning ring-warning/20"
+          : s.includes("anulada")
+            ? "bg-destructive/10 text-destructive ring-destructive/20"
+            : s.includes("borrador")
+              ? "bg-primary/10 text-primary ring-primary/20"
       : s.includes("progres")
         ? "bg-primary/10 text-primary ring-primary/20"
         : s.includes("atend") || s === "atendida"
@@ -107,24 +151,27 @@ export default function ReportesFichasPage() {
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewingRecord, setViewingRecord] = useState<any>(null);
-  const [selectedTipo, setSelectedTipo] = useState<"Soporte" | "Baja">("Soporte");
+  const [selectedTipo, setSelectedTipo] = useState<"Soporte" | "Baja" | "Acta de entrega">("Soporte");
 
   const loadRecords = async () => {
     setLoading(true);
     try {
-      const [supportRes, bajaRes] = await Promise.all([
+      const [supportRes, bajaRes, actaRes] = await Promise.all([
         fetch("/api/soporte/ficha?reportes=1"),
         fetch("/api/soporte/baja?reportes=1"),
+        fetch("/api/soporte/actas-entrega?todas=1"),
       ]);
 
       if (!supportRes.ok) throw new Error("Error cargando fichas de soporte");
       if (!bajaRes.ok) throw new Error("Error cargando fichas de baja");
+      if (!actaRes.ok) throw new Error("Error cargando actas de entrega");
 
-      const [supportData, bajaData] = await Promise.all([supportRes.json(), bajaRes.json()]);
+      const [supportData, bajaData, actaData] = await Promise.all([supportRes.json(), bajaRes.json(), actaRes.json()]);
       const supportRecords = Array.isArray(supportData) ? supportData.map(normalizeSupport) : [];
       const bajaRecords = Array.isArray(bajaData) ? bajaData.map(normalizeBaja) : [];
+      const actaRecords = Array.isArray(actaData) ? actaData.map(normalizeActa) : [];
 
-      setRecords([...supportRecords, ...bajaRecords]);
+      setRecords([...supportRecords, ...bajaRecords, ...actaRecords]);
     } catch (e) {
       console.error(e);
       setMessage("No se pudieron cargar las fichas");
@@ -201,61 +248,21 @@ export default function ReportesFichasPage() {
     setExporting(true);
     setMessage("");
     try {
-      // enviar filtros al endpoint de exportar si soporta query params
-      const headers = [
-        "Tipo",
-        "Nº Ficha",
-        "Unidad Orgánica",
-        "Fecha Registro",
-        "Responsable",
-        "Dependencia",
-        "Ambiente",
-        "Bien",
-        "Cod. Inventario",
-        "Cod. Patrimonial",
-        "Estado",
-        "Tipo Bien",
-        "Recomendación",
-        "Causal de Baja",
-        "Fundamentación",
-        "Trabajos Realizados",
-        "Diagnóstico",
-        "Prioridad",
-      ];
-
-      const rows = filteredRecords.map((r) => [
-        r.tipo,
-        r.numero || "",
-        r.unidadOrganica || "",
-        r.fechaRegistro ? new Date(r.fechaRegistro).toLocaleString("es-PE") : "",
-        r.responsable || "",
-        r.dependencia || "",
-        r.ambiente || "",
-        r.bien?.Descripcion || r.bien?.CodigoInventario || "",
-        r.bien?.CodigoInventario || "",
-        r.bien?.CodigoPatrimonial || "",
-        r.estado || "",
-        r.tipoBien || "",
-        r.recomendacion || "",
-        r.causalBaja || "",
-        r.fundamentacion || "",
-        r.trabajosRealizados || "",
-        r.diagnostico || "",
-        r.prioridad || "",
-      ]);
-
-      const csvContent = [headers.join("\t"), ...rows.map((row) => row.join("\t"))].join("\n");
-      const blob = new Blob(["\uFEFF" + csvContent], {
-        type: "text/csv;charset=utf-8;",
+      await exportStyledReportExcel({
+        title: `Registro de ${selectedTipo}`,
+        sheetName: selectedTipo,
+        filename: `registros_${selectedTipo.toLowerCase().replaceAll(" ", "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        filters: [searchTerm && `Búsqueda: ${searchTerm}`, startDate && `Desde: ${startDate}`, endDate && `Hasta: ${endDate}`].filter(Boolean) as string[],
+        columns: [
+          { header: "Tipo", key: "tipo", width: 18 }, { header: "N.º Ficha / Acta", key: "numero", width: 18 },
+          { header: "Fecha de registro", key: "fecha", width: 21 }, { header: "Responsable / Receptor", key: "responsable", width: 28 },
+          { header: "Dependencia / Área", key: "dependencia", width: 27 }, { header: "Ambiente", key: "ambiente", width: 20 },
+          { header: "Bien", key: "bien", width: 32 }, { header: "Código inventario", key: "inventario", width: 19 },
+          { header: "Código patrimonial", key: "patrimonial", width: 20 }, { header: "Estado", key: "estado", width: 17 },
+          { header: "Registrado por", key: "usuario", width: 26 }, { header: "Observación / Recomendación", key: "observacion", width: 36 },
+        ],
+        rows: filteredRecords.map((r) => ({ tipo: r.tipo, numero: r.numero || "", fecha: r.fechaRegistro ? new Date(r.fechaRegistro).toLocaleString("es-PE") : "", responsable: r.responsable || "", dependencia: r.dependencia || "", ambiente: r.ambiente || "", bien: r.bien?.Descripcion || "", inventario: r.bien?.CodigoInventario || "", patrimonial: r.bien?.CodigoPatrimonial || "", estado: r.estadoAprobacion || r.estadoTicket || r.estado || "", usuario: r.usuario || "", observacion: r.observacion || r.recomendacion || r.trabajosRealizados || "" })),
       });
-      const link = document.createElement("a");
-      const objectUrl = window.URL.createObjectURL(blob);
-      link.href = objectUrl;
-      link.download = `registros_fichas_${selectedTipo.toLowerCase()}_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(objectUrl);
       setMessage("Exportación completada");
     } catch (e: any) {
       console.error(e);
@@ -269,7 +276,9 @@ export default function ReportesFichasPage() {
     if (!confirm("¿Está seguro de eliminar esta ficha?")) return;
     try {
       const endpoint = record.tipo === "Baja" ? "/api/soporte/baja" : "/api/soporte/ficha";
-      const res = await fetch(`${endpoint}?id=${record.id}`, { method: "DELETE" });
+      const res = record.tipo === "Acta de entrega"
+        ? await fetch("/api/soporte/actas-entrega", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ IdActaEntrega: record.id, Accion: "N" }) })
+        : await fetch(`${endpoint}?id=${record.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error al eliminar");
       await loadRecords();
       setMessage(`Ficha de ${record.tipo.toLowerCase()} eliminada`);
@@ -279,9 +288,13 @@ export default function ReportesFichasPage() {
     }
   };
 
-  const handlePrintPdf = (record: any) => {
+  const handlePrintPdf = async (record: any) => {
     try {
-      if (record.tipo === "Baja") {
+      if (record.tipo === "Acta de entrega") {
+        const response = await fetch(`/api/soporte/actas-entrega?id=${record.id}`);
+        if (!response.ok) throw new Error("No se pudo cargar el acta");
+        openActaEntregaPrintWindow(await response.json());
+      } else if (record.tipo === "Baja") {
         openBajaPrintWindow(record.raw ?? record, record.raw?.Bien ?? record.bien ?? null);
       } else {
         printFichaSoporte(record.raw ?? record);
@@ -294,7 +307,11 @@ export default function ReportesFichasPage() {
 
   const handleExportExcelByRecord = async (record: any) => {
     try {
-      if (record.tipo === "Baja") {
+      if (record.tipo === "Acta de entrega") {
+        const response = await fetch(`/api/soporte/actas-entrega?id=${record.id}`);
+        if (!response.ok) throw new Error("No se pudo cargar el acta");
+        await exportActaEntregaExcel(await response.json());
+      } else if (record.tipo === "Baja") {
         await exportFichaBajaExcel(record.raw ?? record, record.raw?.Bien ?? record.bien ?? null);
       } else {
         await exportFichaSoporteExcel(record.raw ?? record);
@@ -306,11 +323,27 @@ export default function ReportesFichasPage() {
     }
   };
 
+  const handleView = async (record: any) => {
+    try {
+      if (record.tipo === "Acta de entrega") {
+        const response = await fetch(`/api/soporte/actas-entrega?id=${record.id}`);
+        if (!response.ok) throw new Error("No se pudo cargar el acta");
+        setViewingRecord(normalizeActa(await response.json()));
+      } else {
+        setViewingRecord(record);
+      }
+      setViewOpen(true);
+    } catch (error) {
+      console.error(error);
+      setMessage("No se pudo visualizar el registro");
+    }
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader
         title="Registro de fichas"
-        description="Listado, filtros, exportación y acciones sobre fichas de soporte y baja."
+        description="Listado, filtros, exportación y acciones sobre fichas de soporte, baja y actas de entrega."
         actions={
           <Button variant="outline" className="rounded-xl" onClick={loadRecords}>
             Recargar
@@ -318,36 +351,38 @@ export default function ReportesFichasPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard
           title="Fichas de baja"
           value={loadingStats ? "..." : stats?.totalBajas ?? 0}
           icon={FileDown}
           accent="destructive"
+          breakdown={[
+            { label: "Pendientes", value: loading ? "..." : bajaApprovalCounts.pendientes, tone: "warning" },
+            { label: "Aceptadas", value: loading ? "..." : bajaApprovalCounts.aceptadas, tone: "success" },
+            { label: "Rechazadas", value: loading ? "..." : bajaApprovalCounts.rechazadas, tone: "destructive" },
+          ]}
         />
         <StatCard
           title="Fichas de soporte"
           value={loadingStats ? "..." : stats?.totalSoporte ?? 0}
           icon={Headset}
           accent="primary"
+          breakdown={[
+            { label: "Pendientes", value: loading ? "..." : supportApprovalCounts.pendientes, tone: "warning" },
+            { label: "Aceptadas", value: loading ? "..." : supportApprovalCounts.aceptadas, tone: "success" },
+            { label: "Rechazadas", value: loading ? "..." : supportApprovalCounts.rechazadas, tone: "destructive" },
+          ]}
         />
         <StatCard
-          title="Pendientes"
-          value={loadingStats ? "..." : stats?.totalFichasPendientes ?? 0}
-          icon={Clock}
-          accent="warning"
-        />
-        <StatCard
-          title="Aceptadas"
-          value={loadingStats ? "..." : stats?.totalFichasAceptadas ?? 0}
-          icon={CheckCircle}
-          accent="success"
-        />
-        <StatCard
-          title="Rechazadas"
-          value={loadingStats ? "..." : stats?.totalFichasRechazadas ?? 0}
-          icon={CircleX}
-          accent="destructive"
+          title="Actas de entrega"
+          value={loading ? "..." : records.filter((record) => record.tipo === "Acta de entrega").length}
+          icon={ClipboardList}
+          accent="primary"
+          breakdown={[
+            { label: "Entregadas", value: loading ? "..." : records.filter((record) => record.tipo === "Acta de entrega" && String(record.estado).toUpperCase() === "ENTREGADA").length, tone: "success" },
+            { label: "Devueltas", value: loading ? "..." : records.filter((record) => record.tipo === "Acta de entrega" && String(record.estado).toUpperCase() === "DEVUELTA").length, tone: "warning" },
+          ]}
         />
       </div>
 
@@ -382,6 +417,15 @@ export default function ReportesFichasPage() {
               onClick={() => setSelectedTipo("Baja")}
             >
               Ficha de baja
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-lg"
+              variant={selectedTipo === "Acta de entrega" ? "default" : "outline"}
+              onClick={() => setSelectedTipo("Acta de entrega")}
+            >
+              Actas de entrega
             </Button>
           </div>
 
@@ -444,7 +488,7 @@ export default function ReportesFichasPage() {
                           <TableActionButton
                             title="Imprimir PDF"
                             aria-label="Imprimir ficha en PDF"
-                            onClick={() => handlePrintPdf(r)}
+                            onClick={() => void handlePrintPdf(r)}
                           >
                             <Printer className="size-4" />
                           </TableActionButton>
@@ -458,7 +502,7 @@ export default function ReportesFichasPage() {
                           <TableActionButton
                             title="Ver"
                             aria-label="Ver ficha"
-                            onClick={() => { setViewingRecord(r); setViewOpen(true); }}
+                            onClick={() => void handleView(r)}
                           >
                             <Eye className="size-4" />
                           </TableActionButton>
@@ -468,7 +512,7 @@ export default function ReportesFichasPage() {
                                 actionVariant="primary"
                                 title="Editar"
                                 aria-label="Editar ficha"
-                                onClick={() => router.push(`/soporte/${r.tipo === "Baja" ? "baja" : "ficha"}?id=${r.id}`)}
+                                onClick={() => router.push(`/soporte/${r.tipo === "Baja" ? "baja" : r.tipo === "Acta de entrega" ? "acta-entrega" : "ficha"}?id=${r.id}`)}
                               >
                                 <Edit className="size-4" />
                               </TableActionButton>
@@ -553,20 +597,34 @@ export default function ReportesFichasPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
+                      {viewingRecord.tipo === "Acta de entrega" ? viewingRecord.raw?.Detalles?.map((bien: any) => (
+                        <tr key={bien.IdActaEntregaDetalle || bien.IdBien}>
+                          <td className="border-r border-b p-2">{bien.CodigoInventario || "-"}</td>
+                          <td className="border-r border-b p-2">{bien.CodigoPatrimonial || "-"}</td>
+                          <td className="border-r border-b p-2">{bien.Descripcion || "-"}</td>
+                          <td className="border-r border-b p-2">{bien.Marca || "-"}</td>
+                          <td className="border-r border-b p-2">{bien.Modelo || "-"}</td>
+                          <td className="border-b p-2">{bien.NumeroSerie || "-"}</td>
+                        </tr>
+                      )) : <tr>
                         <td className="p-2 border-r border-b">{viewingRecord.Bien?.CodigoInventario || '-'}</td>
                         <td className="p-2 border-r border-b">{viewingRecord.Bien?.CodigoPatrimonial || '-'}</td>
                         <td className="p-2 border-r border-b">{viewingRecord.Bien?.Descripcion || '-'}</td>
                         <td className="p-2 border-r border-b">{viewingRecord.Bien?.Marca?.Marca || '-'}</td>
                         <td className="p-2 border-r border-b">{viewingRecord.Bien?.Modelo?.Modelo || '-'}</td>
                         <td className="p-2 border-b">{viewingRecord.Bien?.NumeroSerie || '-'}</td>
-                      </tr>
+                      </tr>}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              {viewingRecord.tipo === "Acta de entrega" ? (
+                <div>
+                  <h3 className="rounded-t bg-slate-800 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">Observaciones del acta</h3>
+                  <div className="min-h-[70px] whitespace-pre-wrap rounded-b border border-t-0 p-3 text-xs">{viewingRecord.raw?.Observaciones || "Sin observaciones"}</div>
+                </div>
+              ) : <div className="space-y-4">
                 <div>
                   <h3 className="text-[11px] font-bold bg-slate-800 text-white px-2.5 py-1 uppercase tracking-wider rounded-t">V. Trabajos Realizados</h3>
                   <div className="border border-t-0 p-3 rounded-b min-h-[50px] text-xs whitespace-pre-wrap">{viewingRecord.TrabajosRealizados || 'Ninguno'}</div>
@@ -581,7 +639,7 @@ export default function ReportesFichasPage() {
                   <h3 className="text-[11px] font-bold bg-slate-800 text-white px-2.5 py-1 uppercase tracking-wider rounded-t">VII. Recomendaciones</h3>
                   <div className="border border-t-0 p-3 rounded-b min-h-[50px] text-xs whitespace-pre-wrap">{viewingRecord.Recomendacion || 'Ninguna'}</div>
                 </div>
-              </div>
+              </div>}
 
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <Button variant="outline" onClick={() => setViewOpen(false)}>Cerrar</Button>

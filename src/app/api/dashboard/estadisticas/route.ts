@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
-import { adminSession, authSession, guardFailed } from "@/lib/auth/guards";
+import { authSession, guardFailed } from "@/lib/auth/guards";
 
 // Dashboard estadísticas: totales por área, por mes y por día de soporte
 export async function GET(request: Request) {
+  const session = await authSession();
+  if (guardFailed(session)) return session;
   try {
     const [bienesResult, componentesResult, softwareResult, countsResult, areaResult, mesResult, diaResult] = await Promise.all([
       executeQuery(`EXEC sp_ConsultaBien @Accion = @Accion`, { Accion: "T" }).catch(() => ({ recordset: [] })),
@@ -13,6 +15,9 @@ export async function GET(request: Request) {
         SELECT
           (SELECT COUNT(*) FROM BajasBienes) AS totalBajas,
           (SELECT COUNT(*) FROM SoporteTecnico) AS totalSoporte,
+          (SELECT COUNT(*) FROM ActasEntrega WHERE (@EsAdmin = 1 OR IdUsuarioEntrega = @IdUsuario)) AS totalActasEntrega,
+          (SELECT COUNT(*) FROM ActasEntrega WHERE EstadoActa = 'ENTREGADA' AND (@EsAdmin = 1 OR IdUsuarioEntrega = @IdUsuario)) AS totalActasEntregadas,
+          (SELECT COUNT(*) FROM ActasEntrega WHERE EstadoActa = 'DEVUELTA' AND (@EsAdmin = 1 OR IdUsuarioEntrega = @IdUsuario)) AS totalActasDevueltas,
           (SELECT COUNT(*) FROM SoporteTecnico WHERE EstadoTicket = 'Pendiente') AS totalSoportePendiente,
           (SELECT COUNT(*) FROM SoporteTecnico WHERE EstadoTicket = 'En Proceso') AS totalSoporteProceso,
           (SELECT COUNT(*) FROM SoporteTecnico WHERE EstadoTicket = 'Atendido') AS totalSoporteAtendido,
@@ -23,7 +28,7 @@ export async function GET(request: Request) {
             + (SELECT COUNT(*) FROM BajasBienes WHERE UPPER(LTRIM(RTRIM(ISNULL(EstadoAprobacion, '')))) IN ('APROBADA', 'ACEPTADA')) AS totalFichasAceptadas,
           (SELECT COUNT(*) FROM SoporteTecnico WHERE UPPER(LTRIM(RTRIM(ISNULL(EstadoAprobacion, '')))) IN ('RECHAZADA', 'RECHAZADO'))
             + (SELECT COUNT(*) FROM BajasBienes WHERE UPPER(LTRIM(RTRIM(ISNULL(EstadoAprobacion, '')))) IN ('RECHAZADA', 'RECHAZADO')) AS totalFichasRechazadas
-      `).catch(() => ({ recordset: [{}] })),
+      `, { EsAdmin: session.role.toLowerCase().includes("admin") ? 1 : 0, IdUsuario: session.id }).catch(() => ({ recordset: [{}] })),
       executeQuery(`
         SELECT 
             ISNULL(a.NombreArea, 'Sin Área') AS NombreArea, 
@@ -102,6 +107,9 @@ export async function GET(request: Request) {
         totalSoftware,
         totalBajas: counts.totalBajas || 0,
         totalSoporte: counts.totalSoporte || 0,
+        totalActasEntrega: counts.totalActasEntrega || 0,
+        totalActasEntregadas: counts.totalActasEntregadas || 0,
+        totalActasDevueltas: counts.totalActasDevueltas || 0,
         totalSoportePendiente: counts.totalSoportePendiente || 0,
         totalSoporteProceso: counts.totalSoporteProceso || 0,
         totalSoporteAtendido: counts.totalSoporteAtendido || 0,
@@ -126,6 +134,9 @@ export async function GET(request: Request) {
         totalSoftware: 0,
         totalBajas: 0,
         totalSoporte: 0,
+        totalActasEntrega: 0,
+        totalActasEntregadas: 0,
+        totalActasDevueltas: 0,
         totalSoportePendiente: 0,
         totalSoporteProceso: 0,
         totalSoporteAtendido: 0,

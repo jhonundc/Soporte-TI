@@ -65,6 +65,7 @@ type RowResultView = {
   UbicacionFisica: string;
   EstadoEquipo: string;
   Estado: "OK" | "ERROR";
+  Mensaje: string;
   flags: ResultErrorFlags;
 };
 
@@ -403,8 +404,10 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
       return res.json();
     },
     onSuccess: (data) => {
-      const resultados = Array.isArray(data?.resultados) ? data.resultados : [];
-      setSummary(data?.resumen ?? { Insertados: 0, Errores: 0 });
+      const resultados: ImportResult[] = Array.isArray(data?.resultados) ? data.resultados : [];
+      const filasConError = new Set(resultados.filter((r) => r.Estado === "ERROR").map((r) => r.Fila));
+      const filasInsertadas = new Set(resultados.filter((r) => r.Estado === "OK").map((r) => r.Fila));
+      setSummary({ Insertados: filasInsertadas.size || Number(data?.resumen?.Insertados || 0), Errores: filasConError.size });
 
       // Si estamos en modo 'arreglar errores', quitar automáticamente las filas que se importaron correctamente
       if (isFixMode) {
@@ -492,6 +495,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
           UbicacionFisica: source?.UbicacionFisica || "-",
           EstadoEquipo: source?.EstadoEquipo || "-",
           Estado: item.Estado,
+          Mensaje: item.Mensaje || "",
           flags,
         });
         continue;
@@ -499,6 +503,9 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
 
       if (item.Estado === "ERROR") {
         row.Estado = "ERROR";
+      }
+      if (item.Mensaje && !row.Mensaje.includes(item.Mensaje)) {
+        row.Mensaje = row.Mensaje ? `${row.Mensaje} | ${item.Mensaje}` : item.Mensaje;
       }
 
       row.flags = {
@@ -597,7 +604,6 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
       const workbook = new ExcelJS.Workbook();
       workbook.creator = "Inventario TI";
       workbook.created = new Date();
-
       const ws = workbook.addWorksheet("Plantilla_Componentes", {
         views: [{ state: "frozen", ySplit: 3 }],
       });
@@ -798,7 +804,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="flex max-h-[92vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-6xl">
+      <DialogContent className="flex max-h-[92vh] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-xl sm:max-w-[96vw] xl:max-w-[1500px]">
         <DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5">
           <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-foreground">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
@@ -903,19 +909,19 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
               <div className="border-b border-destructive/10 bg-destructive/[0.04] px-4 py-3">
                 <p className="text-sm font-semibold text-destructive">Errores a corregir</p>
               </div>
-              <div className="overflow-x-auto max-h-[360px] overflow-y-auto">
-                <table className="w-full text-sm leading-tight">
+              <div className="max-h-[420px] overflow-auto">
+                <table className="w-full min-w-[1450px] text-sm leading-tight">
                   <thead className="bg-slate-100 text-slate-700 sticky top-0">
                     <tr>
-                      <th className="text-left px-2 py-1.5">Fila</th>
-                      <th className="text-left px-2 py-1.5">Cód. Patrimonial</th>
-                      <th className="text-left px-2 py-1.5">Componente</th>
-                      <th className="text-left px-2 py-1.5">Marca</th>
-                      <th className="text-left px-2 py-1.5">Serie</th>
-                      <th className="text-left px-2 py-1.5">Cantidad</th>
-                      <th className="text-left px-2 py-1.5">Ubicación</th>
-                      <th className="text-left px-2 py-1.5">Estado</th>
-                      <th className="text-left px-2 py-1.5">Resultado</th>
+                      <th className="w-16 whitespace-nowrap px-2 py-2 text-left">Fila</th>
+                      <th className="min-w-44 whitespace-nowrap px-2 py-2 text-left">Cód. Patrimonial</th>
+                      <th className="min-w-56 whitespace-nowrap px-2 py-2 text-left">Componente</th>
+                      <th className="min-w-48 whitespace-nowrap px-2 py-2 text-left">Marca</th>
+                      <th className="min-w-44 whitespace-nowrap px-2 py-2 text-left">Serie</th>
+                      <th className="min-w-28 whitespace-nowrap px-2 py-2 text-left">Cantidad</th>
+                      <th className="min-w-56 whitespace-nowrap px-2 py-2 text-left">Ubicación</th>
+                      <th className="min-w-52 whitespace-nowrap px-2 py-2 text-left">Estado</th>
+                      <th className="min-w-28 whitespace-nowrap px-2 py-2 text-left">Resultado</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1120,15 +1126,12 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                     </tr>
                   </thead>
                   <tbody>
-                    {results.map((r: any, idx: number) => {
-                      const source = sourceRowByFila.get(r.Fila);
-                      const nombreDisplay = r.NombreComponente || source?.NombreComponente || "-";
-                      const codigoDisplay = r.CodigoPatrimonial || source?.CodigoPatrimonial || "-";
+                    {resultRows.map((r) => {
                       return (
                         <tr key={r.Fila} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
                           <td className="px-2 py-1">{r.Fila}</td>
-                          <td className="px-2 py-1">{codigoDisplay}</td>
-                          <td className="px-2 py-1">{nombreDisplay}</td>
+                          <td className="px-2 py-1">{r.CodigoPatrimonial || "-"}</td>
+                          <td className="px-2 py-1">{r.NombreComponente || "-"}</td>
                           <td className="px-2 py-1">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${r.Estado === "OK" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
                               {r.Estado}

@@ -20,6 +20,7 @@ import {
 } from "@/lib/lazy/inventory-modals";
 import { notify } from "@/lib/feedback/toast";
 import { cn } from "@/lib/utils";
+import { exportStyledReportExcel } from "@/lib/export/styled-report-excel";
 
 type InventarioStats = {
   totalBienes: number;
@@ -290,35 +291,33 @@ if (selectedAreaId) {
     setExporting(true);
     setMessage("");
     try {
-      let exportUrl = "";
-      let filenameType = "inventario";
-      if (filterType === "bienes") {
-        exportUrl = "/api/bienes/exportar";
-        filenameType = "bienes";
-      } else if (filterType === "componentes") {
-        exportUrl = "/api/componentes/exportar";
-        filenameType = "componentes";
-      } else if (filterType === "software") {
-        exportUrl = "/api/software/exportar";
-        filenameType = "software";
-      }
-
-      const res = await fetch(exportUrl);
-      if (!res.ok) {
-        const error = await res.json().catch(() => null);
-        throw new Error(error?.error || "Error al generar el archivo");
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `inventario_${filenameType}_${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      setMessage(`Reporte de ${filenameType} generado correctamente.`);
+      const filters = [searchTerm && `Búsqueda: ${searchTerm}`, areaSearch && `Área: ${areaSearch}`, startDate && `Desde: ${startDate}`, endDate && `Hasta: ${endDate}`, activeFilter !== "todos" && `Estado: ${activeFilter}`].filter(Boolean) as string[];
+      const config = filterType === "bienes" ? {
+        columns: [
+          { header: "Código inventario", key: "inventario", width: 20 }, { header: "Código patrimonial", key: "patrimonial", width: 21 },
+          { header: "Descripción", key: "descripcion", width: 35 }, { header: "Marca", key: "marca", width: 18 },
+          { header: "Modelo", key: "modelo", width: 20 }, { header: "Número de serie", key: "serie", width: 21 },
+          { header: "Área", key: "area", width: 28 }, { header: "Fecha de registro", key: "fecha", width: 20 }, { header: "Estado", key: "estado", width: 13 },
+        ],
+        rows: filteredRecords.map((r) => ({ inventario: r.CodigoInventario || "", patrimonial: r.CodigoPatrimonial || "", descripcion: r.Descripcion || "", marca: (typeof r.Marca === "object" ? r.Marca?.Marca : r.Marca) || "", modelo: r.Modelo || "", serie: r.NumeroSerie || "", area: r.Area?.NombreArea || r.NombreArea || "", fecha: r.FechaRegistro ? new Date(r.FechaRegistro).toLocaleDateString("es-PE") : "", estado: r.Activo ? "Activo" : "Inactivo" })),
+      } : filterType === "componentes" ? {
+        columns: [
+          { header: "Bien", key: "bien", width: 32 }, { header: "Código patrimonial", key: "patrimonial", width: 21 },
+          { header: "Área", key: "area", width: 28 }, { header: "Componente", key: "componente", width: 26 },
+          { header: "Marca", key: "marca", width: 18 }, { header: "Serie", key: "serie", width: 22 },
+          { header: "Fecha de registro", key: "fecha", width: 20 }, { header: "Estado", key: "estado", width: 13 },
+        ],
+        rows: filteredRecords.map((r) => ({ bien: r.BienDescripcion || r.Bien?.Descripcion || "", patrimonial: r.CodigoPatrimonial || r.Bien?.CodigoPatrimonial || "", area: r.UbicacionFisica || r.Area?.NombreArea || r.Bien?.Area?.NombreArea || r.NombreArea || "", componente: r.NombreComponente || "", marca: (typeof r.Marca === "object" ? r.Marca?.Marca : r.Marca) || "", serie: r.Serie || "", fecha: r.FechaRegistro ? new Date(r.FechaRegistro).toLocaleDateString("es-PE") : "", estado: r.Activo ? "Activo" : "Inactivo" })),
+      } : {
+        columns: [
+          { header: "Software", key: "software", width: 32 }, { header: "Tipo", key: "tipo", width: 23 },
+          { header: "Versión", key: "version", width: 18 }, { header: "Licencias", key: "licencias", width: 14 },
+          { header: "Fecha de registro", key: "fecha", width: 20 }, { header: "Estado", key: "estado", width: 13 },
+        ],
+        rows: filteredRecords.map((r) => ({ software: r.NombreSoftware || "", tipo: r.TipoSoftware || "", version: r.VersionSoftware || "", licencias: r.CantidadLicencias || "", fecha: r.FechaRegistro ? new Date(r.FechaRegistro).toLocaleDateString("es-PE") : "", estado: r.Activo ? "Activo" : "Inactivo" })),
+      };
+      await exportStyledReportExcel({ title: `Registro de inventario - ${filterType}`, sheetName: filterType, filename: `inventario_${filterType}_${new Date().toISOString().slice(0, 10)}.xlsx`, filters, columns: config.columns, rows: config.rows });
+      setMessage(`Reporte de ${filterType} generado correctamente.`);
     } catch (error: unknown) {
       console.error(error);
       setMessage(error instanceof Error ? error.message : "No se pudo generar el reporte.");

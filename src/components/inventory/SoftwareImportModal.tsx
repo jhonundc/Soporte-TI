@@ -58,10 +58,12 @@ type ResultErrorFlags = {
   tipoAsignacion: boolean;
   version: boolean;
   cantidad: boolean;
+  usoFinalidad: boolean;
 };
 
 type RowResultView = {
   Fila: number;
+  NombreSoftware: string;
   Estado: "OK" | "ERROR";
   Mensaje: string;
   flags: ResultErrorFlags;
@@ -338,6 +340,10 @@ export default function SoftwareImportModal({
       if (!current) {
         grouped.set(item.Fila, {
           Fila: item.Fila,
+          NombreSoftware:
+            item.NombreSoftware ||
+            rows.find((row) => row.Fila === item.Fila)?.NombreSoftware ||
+            "",
           Estado: item.Estado,
           Mensaje: item.Mensaje || "",
           flags,
@@ -362,11 +368,12 @@ export default function SoftwareImportModal({
         tipoAsignacion: current.flags.tipoAsignacion || flags.tipoAsignacion,
         version: current.flags.version || flags.version,
         cantidad: current.flags.cantidad || flags.cantidad,
+        usoFinalidad: current.flags.usoFinalidad || flags.usoFinalidad,
       };
     }
 
     return Array.from(grouped.values()).sort((a, b) => a.Fila - b.Fila);
-  }, [results]);
+  }, [results, rows]);
 
   const errorResultRows = useMemo<RowResultView[]>(
     () => resultRows.filter((r) => r.Estado === "ERROR"),
@@ -377,6 +384,9 @@ export default function SoftwareImportModal({
     () => resultRows.some((r) => r.Estado === "ERROR"),
     [resultRows]
   );
+
+  const uniqueInsertedCount = resultRows.filter((row) => row.Estado === "OK").length;
+  const uniqueErrorCount = resultRows.filter((row) => row.Estado === "ERROR").length;
 
   const errorFilaSet = useMemo(() => {
     const set = new Set<number>();
@@ -400,7 +410,8 @@ export default function SoftwareImportModal({
       | "EstadoLicencia"
       | "TipoAsignacion"
       | "VersionSoftware"
-      | "CantidadLicencias",
+      | "CantidadLicencias"
+      | "UsoFinalidad",
     value: string
   ) => {
     setRows((prev) =>
@@ -427,6 +438,10 @@ export default function SoftwareImportModal({
         }
         if (field === "CantidadLicencias") {
           return { ...row, CantidadLicencias: toNullableInt(value) };
+        }
+
+        if (field === "UsoFinalidad") {
+          return { ...row, UsoFinalidad: value || null };
         }
 
         return { ...row, VersionSoftware: value || null };
@@ -494,45 +509,33 @@ export default function SoftwareImportModal({
 
       const headers = [
         "Fila",
-        "IdSoftwareCatalogo",
         "NombreSoftware",
-        "IdTipoSoftware",
         "TipoSoftware",
         "VersionSoftware",
-        "IdProveedor",
         "ProveedorEntidad",
-        "IdTipoLicencia",
         "TipoLicencia",
         "CantidadLicencias",
-        "IdEstadoLicencia",
         "EstadoLicencia",
         "FechaCaducidad",
-        "IdTipoAsignacion",
         "TipoAsignacion",
         "UsoFinalidad",
       ];
 
       wsPlantilla.columns = [
         { key: "Fila", width: 10 },
-        { key: "IdSoftwareCatalogo", width: 18 },
         { key: "NombreSoftware", width: 26 },
-        { key: "IdTipoSoftware", width: 16 },
         { key: "TipoSoftware", width: 20 },
         { key: "VersionSoftware", width: 16 },
-        { key: "IdProveedor", width: 14 },
         { key: "ProveedorEntidad", width: 24 },
-        { key: "IdTipoLicencia", width: 16 },
         { key: "TipoLicencia", width: 20 },
         { key: "CantidadLicencias", width: 18 },
-        { key: "IdEstadoLicencia", width: 16 },
         { key: "EstadoLicencia", width: 18 },
         { key: "FechaCaducidad", width: 16 },
-        { key: "IdTipoAsignacion", width: 16 },
         { key: "TipoAsignacion", width: 20 },
         { key: "UsoFinalidad", width: 30 },
       ];
 
-      wsPlantilla.mergeCells("A1:P1");
+      wsPlantilla.mergeCells("A1:K1");
       wsPlantilla.getCell("A1").value = "PLANTILLA DE CARGA MASIVA DE SOFTWARE";
       wsPlantilla.getCell("A1").font = { bold: true, size: 16, color: { argb: "FFFFFFFF" } };
       wsPlantilla.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
@@ -543,7 +546,7 @@ export default function SoftwareImportModal({
       };
       wsPlantilla.getRow(1).height = 28;
 
-      wsPlantilla.mergeCells("A2:P2");
+      wsPlantilla.mergeCells("A2:K2");
       wsPlantilla.getCell("A2").value = `Sistema Inventario TI | ${new Date().toLocaleDateString("es-PE")}`;
       wsPlantilla.getCell("A2").font = { bold: true, size: 10, color: { argb: "FF0F172A" } };
       wsPlantilla.getCell("A2").alignment = { horizontal: "center", vertical: "middle" };
@@ -575,27 +578,21 @@ export default function SoftwareImportModal({
 
       wsPlantilla.addRow([
         2,
-        "",
         "Microsoft Office",
-        "",
-        "Ofimatica",
-        "365",
-        "",
+        "Ofimática",
+        "Microsoft 365",
         "Microsoft",
-        "",
-        "Suscripcion",
+        "Suscripción",
         50,
-        "",
         "Vigente",
         "2027-12-31",
-        "",
         "Por usuario",
         "Productividad institucional",
       ]);
 
       for (let r = 4; r <= 120; r += 1) {
         const row = wsPlantilla.getRow(r);
-        for (let c = 1; c <= 16; c += 1) {
+        for (let c = 1; c <= 11; c += 1) {
           const cell = row.getCell(c);
           cell.border = {
             top: { style: "thin", color: { argb: "FFD1D5DB" } },
@@ -612,16 +609,16 @@ export default function SoftwareImportModal({
           }
           cell.alignment = {
             vertical: "middle",
-            horizontal: c >= 15 ? "left" : "center",
+            horizontal: c >= 10 ? "left" : "center",
           };
         }
       }
 
       wsPlantilla.autoFilter = {
         from: { row: 3, column: 1 },
-        to: { row: 3, column: 16 },
+        to: { row: 3, column: 11 },
       };
-      wsPlantilla.getColumn(13).numFmt = "yyyy-mm-dd";
+      wsPlantilla.getColumn(9).numFmt = "yyyy-mm-dd";
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer as ArrayBuffer], {
@@ -778,14 +775,14 @@ export default function SoftwareImportModal({
                 <CheckCircle2 className="h-5 w-5" />
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide">Insertados</p>
-                  <p className="text-xl font-bold">{summary.Insertados ?? 0}</p>
+                  <p className="text-xl font-bold">{uniqueInsertedCount}</p>
                 </div>
               </div>
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800 flex items-center gap-3">
                 <AlertTriangle className="h-5 w-5" />
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide">Errores</p>
-                  <p className="text-xl font-bold">{summary.Errores ?? 0}</p>
+                  <p className="text-xl font-bold">{uniqueErrorCount}</p>
                 </div>
               </div>
             </div>
@@ -809,6 +806,7 @@ export default function SoftwareImportModal({
                       <th className="text-left px-2 py-1.5">Asignación</th>
                       <th className="text-left px-2 py-1.5">Versión</th>
                       <th className="text-left px-2 py-1.5">Cantidad</th>
+                      <th className="text-left px-2 py-1.5">Uso / finalidad</th>
                       <th className="text-left px-2 py-1.5">Resultado</th>
                     </tr>
                   </thead>
@@ -823,16 +821,17 @@ export default function SoftwareImportModal({
                       const tipoAsignacionValue = source?.TipoAsignacion || (source?.IdTipoAsignacion ? String(source.IdTipoAsignacion) : "");
                       const versionValue = source?.VersionSoftware || "";
                       const cantidadValue = source?.CantidadLicencias ?? null;
+                      const usoFinalidadValue = source?.UsoFinalidad || "";
 
                       return (
                         <tr key={`error-${r.Fila}`} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
                           <td className="px-2 py-1">{r.Fila}</td>
                           <td className={`px-2 py-1 ${r.flags.software ? "text-red-600 font-semibold" : ""}`}>
-                            {isFixMode && r.flags.software ? (
+                            {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[150px] flex-1">
                                   <Select value={softwareValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "NombreSoftware", val === "__empty__" ? "" : (val ?? ""))}>
-                                    <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                    <SelectTrigger className={r.flags.software ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -846,7 +845,7 @@ export default function SoftwareImportModal({
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                  className={r.flags.software ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                   disabled={isCreatingCatalog}
                                   onClick={() => void createCatalogOption("softwareCatalogo", r.Fila, "NombreSoftware")}
                                   title="Agregar software al catálogo"
@@ -859,11 +858,11 @@ export default function SoftwareImportModal({
                             )}
                           </td>
                           <td className={`px-2 py-1 ${r.flags.tipoSoftware ? "text-red-600 font-semibold" : ""}`}>
-                            {isFixMode && r.flags.tipoSoftware ? (
+                            {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
                                   <Select value={tipoSoftwareValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "TipoSoftware", val === "__empty__" ? "" : (val ?? ""))}>
-                                    <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                    <SelectTrigger className={r.flags.tipoSoftware ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -877,7 +876,7 @@ export default function SoftwareImportModal({
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                  className={r.flags.tipoSoftware ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                   disabled={isCreatingCatalog}
                                   onClick={() => void createCatalogOption("tipoSoftware", r.Fila, "TipoSoftware")}
                                   title="Agregar tipo de software"
@@ -890,11 +889,11 @@ export default function SoftwareImportModal({
                             )}
                           </td>
                           <td className={`px-2 py-1 ${r.flags.proveedor ? "text-red-600 font-semibold" : ""}`}>
-                            {isFixMode && r.flags.proveedor ? (
+                            {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
                                   <Select value={proveedorValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "ProveedorEntidad", val === "__empty__" ? "" : (val ?? ""))}>
-                                    <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                    <SelectTrigger className={r.flags.proveedor ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -908,7 +907,7 @@ export default function SoftwareImportModal({
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                  className={r.flags.proveedor ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                   disabled={isCreatingCatalog}
                                   onClick={() => void createCatalogOption("proveedor", r.Fila, "ProveedorEntidad")}
                                   title="Agregar proveedor"
@@ -921,11 +920,11 @@ export default function SoftwareImportModal({
                             )}
                           </td>
                           <td className={`px-2 py-1 ${r.flags.tipoLicencia ? "text-red-600 font-semibold" : ""}`}>
-                            {isFixMode && r.flags.tipoLicencia ? (
+                            {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
                                   <Select value={tipoLicenciaValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "TipoLicencia", val === "__empty__" ? "" : (val ?? ""))}>
-                                    <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                    <SelectTrigger className={r.flags.tipoLicencia ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -939,7 +938,7 @@ export default function SoftwareImportModal({
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                  className={r.flags.tipoLicencia ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                   disabled={isCreatingCatalog}
                                   onClick={() => void createCatalogOption("tipoLicencia", r.Fila, "TipoLicencia")}
                                   title="Agregar tipo de licencia"
@@ -952,11 +951,11 @@ export default function SoftwareImportModal({
                             )}
                           </td>
                           <td className={`px-2 py-1 ${r.flags.estadoLicencia ? "text-red-600 font-semibold" : ""}`}>
-                            {isFixMode && r.flags.estadoLicencia ? (
+                            {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
                                   <Select value={estadoLicenciaValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "EstadoLicencia", val === "__empty__" ? "" : (val ?? ""))}>
-                                    <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                    <SelectTrigger className={r.flags.estadoLicencia ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -970,7 +969,7 @@ export default function SoftwareImportModal({
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                  className={r.flags.estadoLicencia ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                   disabled={isCreatingCatalog}
                                   onClick={() => void createCatalogOption("estadoLicencia", r.Fila, "EstadoLicencia")}
                                   title="Agregar estado de licencia"
@@ -983,11 +982,11 @@ export default function SoftwareImportModal({
                             )}
                           </td>
                           <td className={`px-2 py-1 ${r.flags.tipoAsignacion ? "text-red-600 font-semibold" : ""}`}>
-                            {isFixMode && r.flags.tipoAsignacion ? (
+                            {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
                                   <Select value={tipoAsignacionValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "TipoAsignacion", val === "__empty__" ? "" : (val ?? ""))}>
-                                    <SelectTrigger className="h-7 border-red-300 text-red-700">
+                                    <SelectTrigger className={r.flags.tipoAsignacion ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
                                       <SelectValue placeholder="Seleccionar" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -1001,7 +1000,7 @@ export default function SoftwareImportModal({
                                 <Button
                                   type="button"
                                   variant="outline"
-                                  className="h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50"
+                                  className={r.flags.tipoAsignacion ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
                                   disabled={isCreatingCatalog}
                                   onClick={() => void createCatalogOption("tipoAsignacion", r.Fila, "TipoAsignacion")}
                                   title="Agregar tipo de asignación"
@@ -1014,26 +1013,38 @@ export default function SoftwareImportModal({
                             )}
                           </td>
                           <td className={`px-2 py-1 ${r.flags.version ? "text-red-600 font-semibold" : ""}`}>
-                            {isFixMode && r.flags.version ? (
+                            {isFixMode ? (
                               <Input
                                 value={versionValue}
                                 onChange={(e) => updateRowField(r.Fila, "VersionSoftware", e.target.value)}
-                                className="h-7 border-red-300 text-red-700"
+                                className={r.flags.version ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}
                               />
                             ) : (
                               versionValue || "-"
                             )}
                           </td>
                           <td className={`px-2 py-1 ${r.flags.cantidad ? "text-red-600 font-semibold" : ""}`}>
-                            {isFixMode && r.flags.cantidad ? (
+                            {isFixMode ? (
                               <Input
                                 type="number"
                                 value={cantidadValue ?? ""}
                                 onChange={(e) => updateRowField(r.Fila, "CantidadLicencias", e.target.value)}
-                                className="h-7 border-red-300 text-red-700"
+                                className={r.flags.cantidad ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}
                               />
                             ) : (
                               cantidadValue ?? "-"
+                            )}
+                          </td>
+                          <td className={`px-2 py-1 ${r.flags.usoFinalidad ? "text-red-600 font-semibold" : ""}`}>
+                            {isFixMode ? (
+                              <Input
+                                value={usoFinalidadValue}
+                                maxLength={255}
+                                onChange={(e) => updateRowField(r.Fila, "UsoFinalidad", e.target.value)}
+                                className={r.flags.usoFinalidad ? "h-7 min-w-[190px] border-red-300 text-red-700" : "h-7 min-w-[190px] border-slate-300 text-slate-700"}
+                              />
+                            ) : (
+                              usoFinalidadValue || "-"
                             )}
                           </td>
                           <td className="px-2 py-1">
@@ -1066,13 +1077,15 @@ export default function SoftwareImportModal({
                     </tr>
                   </thead>
                   <tbody>
-                    {results.map((r, idx) => (
+                    {resultRows.map((r) => (
                       <tr
-                        key={`${r.Fila}-${r.NombreSoftware || r.IdSoftwareCatalogo || "-"}-${idx}`}
+                        key={`resultado-${r.Fila}`}
                         className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60"
                       >
                         <td className="px-2 py-1">{r.Fila}</td>
-                        <td className="px-2 py-1">{r.NombreSoftware || r.IdSoftwareCatalogo || "-"}</td>
+                        <td className={`px-2 py-1 ${r.flags.software ? "font-semibold text-red-600" : ""}`}>
+                          {r.NombreSoftware || "-"}
+                        </td>
                         <td className="px-2 py-1">
                           <span
                             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -1108,14 +1121,19 @@ function normalizeText(value: unknown): string {
 function getErrorFlags(message: string): ResultErrorFlags {
   const msg = normalizeText(message);
   return {
-    software: msg.includes("software inexistente") || msg.includes("software no existe"),
-    tipoSoftware: msg.includes("tipo de software"),
-    proveedor: msg.includes("proveedor"),
-    tipoLicencia: msg.includes("tipo de licencia"),
-    estadoLicencia: msg.includes("estado de licencia"),
-    tipoAsignacion: msg.includes("tipo de asignacion") || msg.includes("tipo de asignación"),
-    version: msg.includes("version") || msg.includes("versión"),
-    cantidad: msg.includes("cantidad"),
+    software:
+      msg.includes("software inexistente o inactivo") ||
+      msg.includes("software no existe"),
+    tipoSoftware: msg.includes("tipo de software inexistente o inactivo"),
+    proveedor: msg.includes("proveedor inexistente o inactivo"),
+    tipoLicencia: msg.includes("tipo de licencia inexistente o inactivo"),
+    estadoLicencia: msg.includes("estado de licencia inexistente o inactivo"),
+    tipoAsignacion: msg.includes("tipo de asignacion inexistente o inactivo"),
+    version:
+      msg.includes("version de software obligatoria") ||
+      msg.includes("versionsoftware excede 100 caracteres"),
+    cantidad: msg.includes("cantidad de licencias debe ser mayor a cero"),
+    usoFinalidad: msg.includes("usofinalidad excede 255 caracteres"),
   };
 }
 
