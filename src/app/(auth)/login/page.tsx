@@ -107,15 +107,9 @@ export default function LoginPage() {
                 />
 
                 <div className="flex max-w-md flex-col gap-7">
-                  <div className="space-y-3">
-                    <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl sm:leading-snug">
-                      Gestión inteligente de activos TI
-                    </h1>
-                    <p className="text-sm leading-6 text-sky-50/90">
-                      Plataforma unificada para soporte técnico e inventario del Hospital Rezola.
-                      Diseñada para equipos que necesitan claridad, velocidad y control.
-                    </p>
-                  </div>
+                  <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl sm:leading-snug">
+                    Gestión inteligente de activos TI
+                  </h1>
 
                   <ul className="space-y-3">
                     {benefits.map(({ icon: Icon, text }) => (
@@ -139,14 +133,9 @@ export default function LoginPage() {
                 aria-label="Inicio de sesión"
               >
                 <div className="w-full max-w-sm space-y-6">
-                  <div className="space-y-2">
-                    <h2 className="text-xl font-semibold tracking-tight text-slate-800 sm:text-2xl">
-                      Bienvenido de nuevo
-                    </h2>
-                    <p className="text-sm leading-5 text-slate-600">
-                      Ingrese sus credenciales para acceder al sistema.
-                    </p>
-                  </div>
+                  <h2 className="text-xl font-semibold tracking-tight text-slate-800 sm:text-2xl">
+                    Bienvenido
+                  </h2>
 
                   <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
                     <div className="space-y-2">

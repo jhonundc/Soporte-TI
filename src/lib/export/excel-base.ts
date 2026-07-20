@@ -205,6 +205,9 @@ export const FICHA_BAJA_TEMPLATE_URL = "/templates/ficha-baja.xlsx";
 /** Plantilla oficial de ficha de soporte técnico (public/templates/ficha-soporte.xlsx). */
 export const FICHA_SOPORTE_TEMPLATE_URL = "/templates/ficha-soporte.xlsx";
 
+/** Plantilla oficial de acta de entrega (public/templates/acta-entrega.xlsx). */
+export const ACTA_ENTREGA_TEMPLATE_URL = "/templates/acta-entrega.xlsx";
+
 /** Carga un libro Excel existente conservando vistas, pageSetup, merges y estilos. */
 export async function loadWorkbookTemplate(url: string): Promise<Workbook> {
   const mod = await import("exceljs");
