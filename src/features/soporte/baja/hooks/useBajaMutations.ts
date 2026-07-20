@@ -14,13 +14,21 @@ export function useBajaMutations(onSaveSuccess?: () => void) {
   };
 
   const saveMutation = useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       data,
       editingId,
+      evidence,
     }: {
       data: Record<string, unknown>;
       editingId?: number;
-    }) => bajaService.save(data, editingId),
+      evidence?: File | null;
+    }) => {
+      const saved = await bajaService.save(data, editingId);
+      if (editingId && evidence) {
+        await bajaService.saveEvidence(editingId, evidence);
+      }
+      return saved;
+    },
     onSuccess: () => {
       invalidate();
       onSaveSuccess?.();
@@ -29,6 +37,11 @@ export function useBajaMutations(onSaveSuccess?: () => void) {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => bajaService.remove(id),
+    onSuccess: invalidate,
+  });
+
+  const deleteEvidenceMutation = useMutation({
+    mutationFn: (id: number) => bajaService.removeEvidence(id),
     onSuccess: invalidate,
   });
 
@@ -41,5 +54,5 @@ export function useBajaMutations(onSaveSuccess?: () => void) {
     }
   };
 
-  return { saveMutation, deleteMutation, handleDelete };
+  return { saveMutation, deleteMutation, deleteEvidenceMutation, handleDelete };
 }

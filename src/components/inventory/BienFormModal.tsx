@@ -122,7 +122,17 @@ export default function BienFormModal({ bien, open, onOpenChange, readOnly = fal
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-medium text-foreground">Cód. Inventario</label>
-              <Input {...register("CodigoInventario")} placeholder="Ej. INV-001" readOnly={readOnly} />
+              <Input
+                {...register("CodigoInventario")}
+                placeholder="Ej. 5245 o INV-001"
+                maxLength={50}
+                readOnly={readOnly}
+              />
+              {!readOnly && (
+                <p className="text-xs text-muted-foreground">
+                  Acepta números o texto libre; no requiere el prefijo INV-.
+                </p>
+              )}
               {errors.CodigoInventario && <p className="text-xs text-destructive">{errors.CodigoInventario.message}</p>}
             </div>
             <div className="space-y-1">

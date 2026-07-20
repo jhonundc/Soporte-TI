@@ -42,7 +42,8 @@ const defaultFormValues: BajaFormValues = {
 
 export function useBajaForm(
   catalogs: CatalogData,
-  saveMutation: ReturnType<typeof useBajaMutations>["saveMutation"]
+  saveMutation: ReturnType<typeof useBajaMutations>["saveMutation"],
+  deleteEvidenceMutation: ReturnType<typeof useBajaMutations>["deleteEvidenceMutation"]
 ) {
   const { bienes, condiciones, estados, sessionData } = catalogs;
 
@@ -55,6 +56,7 @@ export function useBajaForm(
     CausalBaja: "",
   });
   const [bienSearch, setBienSearch] = useState("");
+  const [evidence, setEvidence] = useState<File | null>(null);
 
   const { register, handleSubmit, reset, setValue, watch } = useForm<BajaFormValues>({
     defaultValues: defaultFormValues,
@@ -123,6 +125,7 @@ export function useBajaForm(
     reset(defaultFormValues);
     setFormData({ IdCondicion: "", IdEstadoBien: "", Recomendacion: "", CausalBaja: "" });
     setBienSearch("");
+    setEvidence(null);
     setEditingBaja(null);
     setOpen(false);
   };
@@ -160,6 +163,14 @@ export function useBajaForm(
       notify.warning("Complete la fundamentación.");
       return;
     }
+    if (evidence && !["image/jpeg", "image/png", "image/webp"].includes(evidence.type)) {
+      notify.warning("La evidencia debe ser una imagen JPG, PNG o WEBP.");
+      return;
+    }
+    if (evidence && evidence.size > 5 * 1024 * 1024) {
+      notify.warning("La imagen de evidencia no puede superar los 5 MB.");
+      return;
+    }
 
     const userId = sessionData?.user?.id || data.IdUsuarioRegistro || null;
     const payload: Record<string, unknown> = {
@@ -171,6 +182,7 @@ export function useBajaForm(
       await saveMutation.mutateAsync({
         data: payload,
         editingId: editingBaja?.IdBaja,
+        evidence: editingBaja ? evidence : null,
       });
       closeForm();
     } catch (error: unknown) {
@@ -179,6 +191,7 @@ export function useBajaForm(
   };
 
   const handleEdit = (baja: BajaRecord) => {
+    setEvidence(null);
     setEditingBaja(baja);
     setValue("NumeroFichaBaja", baja.NumeroFichaBaja || "");
     setValue("UnidadOrganica", baja.UnidadOrganica || "");
@@ -213,6 +226,7 @@ export function useBajaForm(
     const userId = sessionData?.user?.id ? String(sessionData.user.id) : "";
 
     setEditingBaja(null);
+    setEvidence(null);
     setFormData({ IdCondicion: "", IdEstadoBien: "", Recomendacion: "", CausalBaja: "" });
     reset({
       ...defaultFormValues,
@@ -221,6 +235,20 @@ export function useBajaForm(
     });
     setBienSearch("");
     setOpen(true);
+  };
+
+  const handleDeleteEvidence = async () => {
+    if (!editingBaja?.EvidenciaFirma) return;
+    if (!window.confirm("¿Desea eliminar la imagen de evidencia de esta ficha?")) return;
+
+    try {
+      await deleteEvidenceMutation.mutateAsync(editingBaja.IdBaja);
+      setEditingBaja((current) => current ? { ...current, EvidenciaFirma: undefined } : current);
+      setEvidence(null);
+      notify.success("La imagen de evidencia fue eliminada.");
+    } catch (error: unknown) {
+      notify.fromError(error, "No se pudo eliminar la imagen de evidencia.");
+    }
   };
 
   const selectBien = (bien: BienRef) => {
@@ -235,6 +263,8 @@ export function useBajaForm(
     formData,
     bienSearch,
     setBienSearch,
+    evidence,
+    setEvidence,
     register,
     handleSubmit,
     setValue,
@@ -247,9 +277,11 @@ export function useBajaForm(
     onSubmit,
     handleEdit,
     handleNuevo,
+    handleDeleteEvidence,
     closeForm,
     selectBien,
     savePending: saveMutation.isPending,
+    deleteEvidencePending: deleteEvidenceMutation.isPending,
     selectedCondicion,
     selectedEstado,
   };

@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Plus, UploadCloud } from "lucide-react";
-import { notify } from "@/lib/feedback/toast";
 
 type ImportRow = {
   Fila: number;
@@ -125,6 +124,15 @@ function getErrorFlags(message: string): ResultErrorFlags {
     ubicacionFisica: msg.includes("ubicacion"),
     estadoEquipo: msg.includes("estado"),
   };
+}
+
+function getFieldErrorMessage(message: string, field: keyof ResultErrorFlags): string | undefined {
+  if (!message) return undefined;
+  const matchingMessages = message
+    .split(" | ")
+    .map((item) => item.trim())
+    .filter((item) => item && getErrorFlags(item)[field]);
+  return matchingMessages.length ? matchingMessages.join(" · ") : message;
 }
 
 function resolveComponenteIdByNombre(nombre: string | null, componentes: CatalogOption[] = []): number | null {
@@ -410,23 +418,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
       setSummary({ Insertados: filasInsertadas.size || Number(data?.resumen?.Insertados || 0), Errores: filasConError.size });
 
       // Si estamos en modo 'arreglar errores', quitar automáticamente las filas que se importaron correctamente
-      if (isFixMode) {
-        const okFilas = new Set(resultados.filter((r: ImportResult) => r.Estado === "OK").map((r: ImportResult) => r.Fila));
-        if (okFilas.size) {
-          setRows((prev) => prev.filter((row) => !okFilas.has(row.Fila)));
-          notify.success(`${okFilas.size} fila(s) corregida(s) y removida(s)`);
-        }
-        // Mantener en 'results' solo los errores restantes
-        const remaining = resultados.filter((r: ImportResult) => r.Estado !== "OK");
-        setResults(remaining);
-
-        if (remaining.length === 0) {
-          setIsFixMode(false);
-          notify.success("No quedan errores por corregir");
-        }
-      } else {
-        setResults(resultados);
-      }
+      setResults(resultados);
 
       if (typeof onImported === "function") onImported();
     },
@@ -435,40 +427,20 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
     },
   });
 
-  const handleToggleFixMode = async () => {
+  const handleToggleFixMode = () => {
     if (!isFixMode) {
       setIsFixMode(true);
       return;
     }
 
-    // finishing edit: validate only the rows that previously had errors
     const payloadRows = rows.filter((row) => errorFilaSet.has(row.Fila));
     if (!payloadRows.length) {
       setIsFixMode(false);
       return;
     }
 
-    // Run validation-only mutation and handle its success locally
-    importMutation.mutate(
-      { rows: payloadRows, validateOnly: true },
-      {
-        onSuccess: (data: any) => {
-          const resultados = Array.isArray(data?.resultados) ? data.resultados : [];
-          // Remove OK filas from rows and update results
-          const okFilas = new Set(resultados.filter((r: any) => r.Estado === "OK").map((r: any) => r.Fila));
-          if (okFilas.size) {
-            setRows((prev) => prev.filter((row) => !okFilas.has(row.Fila)));
-            notify.success(`${okFilas.size} fila(s) corregida(s) y removida(s)`);
-          }
-          const remaining = resultados.filter((r: any) => r.Estado !== "OK");
-          setResults(remaining);
-          setIsFixMode(false);
-        },
-        onError: (err: any) => {
-          alert(err?.message || "Error en validación");
-        },
-      }
-    );
+    setIsFixMode(false);
+    importMutation.mutate({ rows: payloadRows });
   };
 
   const previewRows = useMemo(() => rows.slice(0, 8), [rows]);
@@ -844,13 +816,19 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsFixMode((v) => !v)}
-                  className={isFixMode ? "h-7 border-amber-300 bg-amber-50 text-amber-700" : "h-7 border-red-300 bg-red-50 text-red-700"}
+                  onClick={handleToggleFixMode}
+                  disabled={importMutation.isPending}
+                  className={isFixMode ? "h-7 border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400" : "h-7 border-destructive/50 bg-destructive/10 text-destructive"}
                 >
-                  {isFixMode ? "Finalizar edición" : "Arreglar errores"}
+                  {importMutation.isPending ? "Validando..." : isFixMode ? "Finalizar edición" : "Arreglar errores"}
                 </Button>
               )}
             </div>
+            {isFixMode && hasErrorRows && (
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                Modo edición activo: corrige los campos en rojo y pulsa &quot;Finalizar edición&quot; para validarlos nuevamente.
+              </p>
+            )}
           </div>
 
           {!!previewRows.length && !results.length && (
@@ -860,7 +838,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm leading-tight">
-                  <thead className="bg-slate-100 text-slate-700">
+                  <thead className="bg-muted text-muted-foreground">
                     <tr>
                       <th className="text-left px-2 py-1.5">Fila</th>
                       <th className="text-left px-2 py-1.5">Nombre</th>
@@ -871,7 +849,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                   </thead>
                   <tbody>
                     {previewRows.map((row, idx) => (
-                      <tr key={`${row.Fila}-${row.NombreComponente || "sin-nombre"}-${idx}`} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
+                      <tr key={`${row.Fila}-${row.NombreComponente || "sin-nombre"}-${idx}`} className="border-t border-border odd:bg-card even:bg-muted/35">
                         <td className="px-2 py-1">{row.Fila}</td>
                         <td className="px-2 py-1">{row.NombreComponente || "-"}</td>
                         <td className="px-2 py-1">{row.Marca || (row.IdMarca ?? "-")}</td>
@@ -894,12 +872,22 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                   <p className="text-xl font-bold">{summary.Insertados ?? 0}</p>
                 </div>
               </div>
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800 flex items-center gap-3">
+              <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide">Errores</p>
                   <p className="text-xl font-bold">{summary.Errores ?? 0}</p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {!!results.length && !hasErrorRows && (
+            <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Los datos están correctos</p>
+                <p className="text-xs">Las filas fueron validadas e importadas sin errores.</p>
               </div>
             </div>
           )}
@@ -911,7 +899,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
               </div>
               <div className="max-h-[420px] overflow-auto">
                 <table className="w-full min-w-[1450px] text-sm leading-tight">
-                  <thead className="bg-slate-100 text-slate-700 sticky top-0">
+                  <thead className="sticky top-0 bg-muted text-muted-foreground">
                     <tr>
                       <th className="w-16 whitespace-nowrap px-2 py-2 text-left">Fila</th>
                       <th className="min-w-44 whitespace-nowrap px-2 py-2 text-left">Cód. Patrimonial</th>
@@ -921,7 +909,6 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                       <th className="min-w-28 whitespace-nowrap px-2 py-2 text-left">Cantidad</th>
                       <th className="min-w-56 whitespace-nowrap px-2 py-2 text-left">Ubicación</th>
                       <th className="min-w-52 whitespace-nowrap px-2 py-2 text-left">Estado</th>
-                      <th className="min-w-28 whitespace-nowrap px-2 py-2 text-left">Resultado</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -937,9 +924,9 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                       const hasCurrentNombreOption = Boolean(importCatalogs?.componentes?.some((opt) => opt.nombre === nombreValue));
 
                       return (
-                        <tr key={r.Fila} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
+                        <tr key={r.Fila} className="border-t border-border odd:bg-card even:bg-muted/35 text-foreground">
                           <td className="px-2 py-1">{r.Fila}</td>
-                          <td className={`px-2 py-1 ${r.flags.codigoPatrimonial ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.codigoPatrimonial ? getFieldErrorMessage(r.Mensaje, "codigoPatrimonial") : undefined} className={`px-2 py-1 ${r.flags.codigoPatrimonial ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <Input
                                 value={codigoValue}
@@ -950,7 +937,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                               codigoValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.nombreComponente ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.nombreComponente ? getFieldErrorMessage(r.Mensaje, "nombreComponente") : undefined} className={`px-2 py-1 ${r.flags.nombreComponente ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                                 <div className="flex items-center gap-1">
                                   <div className="min-w-[160px] flex-1">
@@ -984,7 +971,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                                 nombreValue || "-"
                               )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.marca ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.marca ? getFieldErrorMessage(r.Mensaje, "marca") : undefined} className={`px-2 py-1 ${r.flags.marca ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
@@ -1015,21 +1002,21 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                               marcaValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.numeroSerie ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.numeroSerie ? getFieldErrorMessage(r.Mensaje, "numeroSerie") : undefined} className={`px-2 py-1 ${r.flags.numeroSerie ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <Input value={serieValue} onChange={(e) => updateRowField(r.Fila, "NumeroSerie", e.target.value)} className={r.flags.numeroSerie ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"} />
                             ) : (
                               serieValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.cantidad ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.cantidad ? getFieldErrorMessage(r.Mensaje, "cantidad") : undefined} className={`px-2 py-1 ${r.flags.cantidad ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <Input type="number" value={cantidadValue ?? ""} onChange={(e) => updateRowField(r.Fila, "Cantidad", e.target.value)} className={r.flags.cantidad ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"} />
                             ) : (
                               cantidadValue ?? "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.ubicacionFisica ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.ubicacionFisica ? getFieldErrorMessage(r.Mensaje, "ubicacionFisica") : undefined} className={`px-2 py-1 ${r.flags.ubicacionFisica ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[160px] flex-1">
@@ -1063,7 +1050,7 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                               ubicacionValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.estadoEquipo ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.estadoEquipo ? getFieldErrorMessage(r.Mensaje, "estadoEquipo") : undefined} className={`px-2 py-1 ${r.flags.estadoEquipo ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[140px] flex-1">
@@ -1097,9 +1084,6 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
                               estadoValue || "-"
                             )}
                           </td>
-                          <td className="px-2 py-1">
-                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">ERROR</span>
-                          </td>
                         </tr>
                       );
                     })}
@@ -1109,43 +1093,6 @@ export default function ComponenteImportModal({ open, onOpenChange, onImported }
             </div>
           )}
 
-          {!!results.length && (
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-              <div className="border-b border-success/15 bg-success/5 px-4 py-3">
-                <p className="text-sm font-semibold text-success">Resultado de importación</p>
-              </div>
-              <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
-                <table className="w-full text-sm leading-tight">
-                  <thead className="bg-slate-100 text-slate-700 sticky top-0">
-                    <tr>
-                      <th className="text-left px-2 py-1.5">Fila</th>
-                      <th className="text-left px-2 py-1.5">Cód. Patrimonial</th>
-                      <th className="text-left px-2 py-1.5">Componente</th>
-                      <th className="text-left px-2 py-1.5">Estado</th>
-                      <th className="text-left px-2 py-1.5">Mensaje</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resultRows.map((r) => {
-                      return (
-                        <tr key={r.Fila} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
-                          <td className="px-2 py-1">{r.Fila}</td>
-                          <td className="px-2 py-1">{r.CodigoPatrimonial || "-"}</td>
-                          <td className="px-2 py-1">{r.NombreComponente || "-"}</td>
-                          <td className="px-2 py-1">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${r.Estado === "OK" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
-                              {r.Estado}
-                            </span>
-                          </td>
-                          <td className="px-2 py-1">{r.Mensaje || "-"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>

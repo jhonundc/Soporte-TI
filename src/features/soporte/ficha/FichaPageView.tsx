@@ -36,8 +36,8 @@ export function FichaPageView() {
     exportToExcel,
   } = useFichaList();
 
-  const { saveMutation, handleDelete } = useFichaMutations();
-  const form = useFichaForm(catalogs, saveMutation, setFormOpen);
+  const { saveMutation, deleteEvidenceMutation, handleDelete } = useFichaMutations();
+  const form = useFichaForm(catalogs, saveMutation, deleteEvidenceMutation, setFormOpen);
   const [verOpen, setVerOpen] = useState(false);
   const [viewingFicha, setViewingFicha] = useState<FichaSoporteRecord | null>(null);
   const [printActionOpen, setPrintActionOpen] = useState(false);

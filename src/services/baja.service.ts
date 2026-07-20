@@ -19,6 +19,21 @@ export const bajaService = {
       body: JSON.stringify(editingId ? { ...data, IdBaja: editingId } : data),
     }),
 
+  saveEvidence: (idBaja: number, image: File) => {
+    const formData = new FormData();
+    formData.append("IdBaja", String(idBaja));
+    formData.append("imagen", image);
+    return apiFetch<{ success: boolean; EvidenciaFirma: string }>(
+      "/api/soporte/baja/evidencia",
+      { method: "POST", body: formData }
+    );
+  },
+
+  removeEvidence: (idBaja: number) =>
+    apiFetch<{ success: boolean }>(`/api/soporte/baja/evidencia?id=${idBaja}`, {
+      method: "DELETE",
+    }),
+
   remove: (id: number) =>
     apiFetch<{ success?: boolean }>(`/api/soporte/baja?id=${id}`, {
       method: "DELETE",

@@ -64,6 +64,7 @@ export type FichaSoporteRecord = {
   EstadoTicket?: string;
   EstadoAprobacion?: string;
   IdUsuarioSoporte?: number;
+  EvidenciaFirma?: string;
   Usuario_Nombres?: string;
   Bien?: BienRef;
   Condicion?: CondicionRef;

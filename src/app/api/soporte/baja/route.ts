@@ -132,6 +132,7 @@ async function enrichBajas(baseRows: any[]) {
       Observacion: row.Observacion,
       IdUsuarioRegistro: row.IdUsuarioRegistro,
       EstadoAprobacion: row.EstadoAprobacion,
+      EvidenciaFirma: row.EvidenciaFirma || null,
       Bien: bien
         ? {
             IdBien: bien.IdBien,
@@ -375,40 +376,42 @@ export async function PATCH(request: Request) {
         Recomendacion: data.Recomendacion,
         CausalBaja: data.CausalBaja,
         Observacion: data.Observacion,
-        IdUsuarioRegistro: data.IdUsuarioRegistro,
+        // La edición no debe transferir la autoría de la ficha al usuario actual.
+        IdUsuarioRegistro: existingBaja.IdUsuarioRegistro,
       }
     );
 
     await syncBienState(transaction, data);
 
-    await executeTransactionQuery(
-      transaction,
-      "UPDATE dbo.BajasBienes SET EstadoAprobacion = 'PENDIENTE' WHERE IdBaja = @IdBaja",
-      { IdBaja: data.IdBaja }
-    );
+    // Solo una corrección hecha por Soporte requiere una nueva revisión del administrador.
+    // Una edición administrativa no debe generar una notificación con origen administrador,
+    // ya que el procedimiento exige que el usuario de origen tenga rol de soporte.
+    if (isSoporte) {
+      await executeTransactionQuery(
+        transaction,
+        "UPDATE dbo.BajasBienes SET EstadoAprobacion = 'PENDIENTE' WHERE IdBaja = @IdBaja",
+        { IdBaja: data.IdBaja }
+      );
 
-    const pendingNotificationResult = await executeTransactionQuery<{ IdNotificacion: number }>(
-      transaction,
-      `SELECT TOP 1 IdNotificacion
-       FROM dbo.Notificaciones
-       WHERE TipoFicha = 'BAJA'
-         AND IdReferencia = @IdReferencia
-         AND EstadoAprobacion = 'PENDIENTE'
-         AND Activo = 1`,
-      { IdReferencia: data.IdBaja }
-    );
+      const pendingNotificationResult = await executeTransactionQuery<{ IdNotificacion: number }>(
+        transaction,
+        `SELECT TOP 1 IdNotificacion
+         FROM dbo.Notificaciones
+         WHERE TipoFicha = 'BAJA'
+           AND IdReferencia = @IdReferencia
+           AND EstadoAprobacion = 'PENDIENTE'
+           AND Activo = 1`,
+        { IdReferencia: data.IdBaja }
+      );
 
-    const originUserId = parseNullableInt(existingBaja.IdUsuarioRegistro);
-    if (!pendingNotificationResult.recordset?.[0]) {
-      if (!originUserId) {
-        throw new Error("No se pudo determinar el usuario de origen de la ficha de baja.");
+      if (!pendingNotificationResult.recordset?.[0]) {
+        await createBajaNotification(transaction, {
+          idBaja: data.IdBaja,
+          numeroFicha: data.NumeroFichaBaja || existingBaja.NumeroFichaBaja || String(data.IdBaja),
+          idUsuarioOrigen: session.id,
+          actualizada: true,
+        });
       }
-      await createBajaNotification(transaction, {
-        idBaja: data.IdBaja,
-        numeroFicha: data.NumeroFichaBaja || existingBaja.NumeroFichaBaja || String(data.IdBaja),
-        idUsuarioOrigen: originUserId,
-        actualizada: true,
-      });
     }
 
     await transaction.commit();

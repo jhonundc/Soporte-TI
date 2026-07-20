@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SearchableSelect } from "@/components/forms/SearchableSelect";
+import { Trash2 } from "lucide-react";
 import {
   CAUSAL_BAJA_OPTIONS,
   CONDICION_OPTIONS,
@@ -35,6 +36,10 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
     formData,
     bienSearch,
     setBienSearch,
+    evidence,
+    setEvidence,
+    handleDeleteEvidence,
+    deleteEvidencePending,
     register,
     handleSubmit,
     setValue,
@@ -376,6 +381,43 @@ export function BajaFormDialog({ form }: BajaFormDialogProps) {
               </label>
             </div>
           </section>
+
+          {editingBaja ? (
+            <section className="rounded-3xl border border-border bg-muted/30 p-5 shadow-sm">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-foreground">Evidencia de firma</h3>
+                <p className="text-sm text-muted-foreground">
+                  Adjunte una imagen para agregar o reemplazar la evidencia de esta ficha.
+                </p>
+              </div>
+              <label className="block space-y-2 text-sm text-foreground">
+                <span className="font-medium">Imagen de evidencia</span>
+                <Input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => setEvidence(event.target.files?.[0] ?? null)}
+                  className="h-11 cursor-pointer rounded-xl border-border bg-white file:mr-3 file:font-medium"
+                />
+                <span className="block text-xs text-muted-foreground">
+                  JPG, PNG o WEBP, hasta 5 MB.{editingBaja.EvidenciaFirma ? " Ya existe una evidencia guardada." : ""}
+                </span>
+                {evidence ? <span className="block text-xs font-medium text-primary">Seleccionada: {evidence.name}</span> : null}
+              </label>
+              {editingBaja.EvidenciaFirma ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="mt-4 gap-2"
+                  disabled={deleteEvidencePending}
+                  onClick={handleDeleteEvidence}
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                  {deleteEvidencePending ? "Eliminando..." : "Eliminar imagen actual"}
+                </Button>
+              ) : null}
+            </section>
+          ) : null}
 
           <div className="flex justify-end gap-3 border-t border-border pt-4">
             <Button

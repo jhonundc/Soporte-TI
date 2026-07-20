@@ -20,6 +20,7 @@ import type {
 } from "@/features/soporte/ficha/types";
 import type { useFichaForm } from "../hooks/useFichaForm";
 import { FichaBienLookupDialog } from "./FichaBienLookupDialog";
+import { Trash2 } from "lucide-react";
 
 type FormState = ReturnType<typeof useFichaForm>;
 
@@ -51,6 +52,8 @@ export function FichaFormDialog({
     condicionBien,
     setCondicionBien,
     estadoBienOptions,
+    evidence,
+    setEvidence,
     register,
     handleSubmit,
     setValue,
@@ -61,7 +64,9 @@ export function FichaFormDialog({
     onSubmit,
     closeForm,
     selectBien,
+    handleDeleteEvidence,
     savePending,
+    deleteEvidencePending,
   } = form;
 
   const selectedBienLabel = (() => {
@@ -395,6 +400,43 @@ export function FichaFormDialog({
                 </div>
               </div>
             </div>
+
+            {editingFicha ? (
+              <section className="rounded-3xl border border-border bg-muted/30 p-5 shadow-sm">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-foreground">Evidencia de firma</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Adjunte una imagen para agregar o reemplazar la evidencia de esta ficha.
+                  </p>
+                </div>
+                <Label className="block space-y-2">
+                  <span>Imagen de evidencia</span>
+                  <Input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => setEvidence(event.target.files?.[0] ?? null)}
+                    className="h-11 cursor-pointer bg-white"
+                  />
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    JPG, PNG o WEBP, hasta 5 MB.{editingFicha.EvidenciaFirma ? " Ya existe una evidencia guardada." : ""}
+                  </span>
+                  {evidence ? <span className="block text-xs font-medium text-primary">Seleccionada: {evidence.name}</span> : null}
+                </Label>
+                {editingFicha.EvidenciaFirma ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="mt-4 gap-2"
+                    disabled={deleteEvidencePending}
+                    onClick={handleDeleteEvidence}
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                    {deleteEvidencePending ? "Eliminando..." : "Eliminar imagen actual"}
+                  </Button>
+                ) : null}
+              </section>
+            ) : null}
 
             <div className="flex justify-end gap-3 border-t border-primary/10 pt-5">
               <Button type="button" variant="outline" className="rounded-xl" onClick={closeForm}>

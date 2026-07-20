@@ -23,6 +23,21 @@ export const fichaService = {
       ),
     }),
 
+  saveEvidence: (idSoporte: number, image: File) => {
+    const formData = new FormData();
+    formData.append("IdSoporte", String(idSoporte));
+    formData.append("imagen", image);
+    return apiFetch<{ success: boolean; EvidenciaFirma: string }>(
+      "/api/soporte/ficha/evidencia",
+      { method: "POST", body: formData }
+    );
+  },
+
+  removeEvidence: (idSoporte: number) =>
+    apiFetch<{ success: boolean }>(`/api/soporte/ficha/evidencia?id=${idSoporte}`, {
+      method: "DELETE",
+    }),
+
   remove: (id: number) =>
     apiFetch<{ success?: boolean }>(`/api/soporte/ficha?id=${id}`, {
       method: "DELETE",

@@ -138,6 +138,15 @@ function getErrorFlags(message: string): ResultErrorFlags {
   };
 }
 
+function getFieldErrorMessage(message: string, field: keyof ResultErrorFlags): string | undefined {
+  if (!message) return undefined;
+  const matchingMessages = message
+    .split(" | ")
+    .map((item) => item.trim())
+    .filter((item) => item && getErrorFlags(item)[field]);
+  return matchingMessages.length ? matchingMessages.join(" · ") : message;
+}
+
 async function fetchImportCatalogs(): Promise<ImportCatalogs> {
   const res = await fetch("/api/bienes/importar/catalogos");
   if (!res.ok) {
@@ -575,7 +584,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
 
       wsPlantilla.addRow([
         2,
-        "INV-0001",
+        "5245",
         "PAT-0001",
         "Laptop",
         "Lenovo",
@@ -761,7 +770,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
             <div className="grid gap-2 text-sm text-foreground md:grid-cols-2">
               <p>1. Usa la plantilla PRO para mantener formato y diseño.</p>
               <p>2. Ingresa nombres exactos en Categoria, Marca, Area, Condicion y EstadoBien.</p>
-              <p>3. CodigoInventario y Descripcion son datos clave para un alta correcta.</p>
+              <p>3. CodigoInventario acepta números o texto libre, por ejemplo: 5245 o INV-055.</p>
               <p>4. FechaCompra debe ir en formato yyyy-mm-dd.</p>
             </div>
           </div>
@@ -805,20 +814,32 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsFixMode((v) => !v)}
+                  onClick={() => {
+                    if (isFixMode) {
+                      handleImport();
+                      return;
+                    }
+
+                    setIsFixMode(true);
+                  }}
+                  disabled={importMutation.isPending}
                   className={
                     isFixMode
                       ? "h-7 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                      : "h-7 border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
+                      : "h-7 border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/15"
                   }
                 >
-                  {isFixMode ? "Finalizar edición" : "Arreglar errores"}
+                  {importMutation.isPending
+                    ? "Validando..."
+                    : isFixMode
+                      ? "Finalizar edición"
+                      : "Arreglar errores"}
                 </Button>
               )}
             </div>
             {isFixMode && hasErrorRows && (
               <p className="mt-2 text-xs text-amber-700">
-                Modo edición activo: corrige los campos en rojo y luego pulsa &quot;Importar archivo&quot; nuevamente.
+                Modo edición activo: corrige los campos en rojo y pulsa &quot;Finalizar edición&quot; para validarlos nuevamente.
               </p>
             )}
           </div>
@@ -830,7 +851,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm leading-tight">
-                  <thead className="bg-slate-100 text-slate-700">
+                  <thead className="bg-muted text-muted-foreground">
                     <tr>
                       <th className="text-left px-2 py-1.5">Fila</th>
                       <th className="text-left px-2 py-1.5">Cód. Inventario</th>
@@ -842,7 +863,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                   </thead>
                   <tbody>
                     {previewRows.map((row, idx) => (
-                      <tr key={`${row.Fila}-${row.CodigoInventario || "sincodigo"}-${idx}`} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
+                      <tr key={`${row.Fila}-${row.CodigoInventario || "sincodigo"}-${idx}`} className="border-t border-border odd:bg-card even:bg-muted/35">
                         <td className="px-2 py-1">{row.Fila}</td>
                         <td className="px-2 py-1">{row.CodigoInventario || "-"}</td>
                         <td className="px-2 py-1">{row.Descripcion || "-"}</td>
@@ -866,12 +887,24 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                   <p className="text-xl font-bold">{summary.Insertados ?? 0}</p>
                 </div>
               </div>
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800 flex items-center gap-3">
+              <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide">Errores</p>
                   <p className="text-xl font-bold">{summary.Errores ?? 0}</p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {!!results.length && !hasErrorRows && (
+            <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
+              <CheckCircle2 className="h-5 w-5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Los datos están correctos</p>
+                <p className="text-xs">
+                  Las filas fueron validadas e importadas sin errores.
+                </p>
               </div>
             </div>
           )}
@@ -883,7 +916,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
               </div>
               <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
                 <table className="w-full text-sm leading-tight">
-                  <thead className="bg-slate-100 text-slate-700 sticky top-0">
+                  <thead className="sticky top-0 bg-muted text-muted-foreground">
                     <tr>
                       <th className="text-left px-2 py-1.5">Fila</th>
                       <th className="text-left px-2 py-1.5">Cód. Inventario</th>
@@ -892,7 +925,6 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                       <th className="text-left px-2 py-1.5">Área</th>
                       <th className="text-left px-2 py-1.5">Condición</th>
                       <th className="text-left px-2 py-1.5">Estado Bien</th>
-                      <th className="text-left px-2 py-1.5">Resultado</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -906,20 +938,22 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                       const estadoValue = source?.EstadoBien || (source?.IdEstadoBien ? String(source.IdEstadoBien) : r.EstadoBien || "");
 
                       return (
-                      <tr key={`${r.Fila}-${r.CodigoInventario}`} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
+                      <tr key={`${r.Fila}-${r.CodigoInventario}`} className="border-t border-border odd:bg-card even:bg-muted/35 text-foreground">
                         <td className="px-2 py-1">{r.Fila}</td>
-                        <td className={`px-2 py-1 ${r.flags.codigoInventario ? "text-red-600 font-semibold" : ""}`}>
+                        <td title={r.flags.codigoInventario ? getFieldErrorMessage(r.Mensaje, "codigoInventario") : undefined} className={`px-2 py-1 ${r.flags.codigoInventario ? "cursor-help font-semibold text-destructive" : ""}`}>
                           {isFixMode ? (
                             <Input
                               value={codigoInventarioValue}
                               onChange={(e) => updateRowField(r.Fila, "CodigoInventario", e.target.value)}
-                              className={r.flags.codigoInventario ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}
+                              maxLength={50}
+                              placeholder="Ej. 5245"
+                              className={r.flags.codigoInventario ? "h-7 border-destructive/60 text-destructive" : "h-7 border-border text-foreground"}
                             />
                           ) : (
                             codigoInventarioValue || "-"
                           )}
                         </td>
-                        <td className={`px-2 py-1 ${r.flags.categoria ? "text-red-600 font-semibold" : ""}`}>
+                        <td title={r.flags.categoria ? getFieldErrorMessage(r.Mensaje, "categoria") : undefined} className={`px-2 py-1 ${r.flags.categoria ? "cursor-help font-semibold text-destructive" : ""}`}>
                           {isFixMode ? (
                             <div className="flex items-center gap-1">
                               <div className="min-w-[130px] flex-1">
@@ -927,7 +961,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                                   value={categoriaValue || "__empty__"}
                                   onValueChange={(val) => updateRowField(r.Fila, "Categoria", val === "__empty__" ? "" : (val ?? ""))}
                                 >
-                                  <SelectTrigger className={r.flags.categoria ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
+                                  <SelectTrigger className={r.flags.categoria ? "h-7 border-destructive/60 text-destructive" : "h-7 border-border text-foreground"}>
                                     <SelectValue placeholder="Seleccionar" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -941,7 +975,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <Button
                                 type="button"
                                 variant="outline"
-                                className={r.flags.categoria ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
+                                className={r.flags.categoria ? "h-7 w-7 border-destructive/60 p-0 text-destructive hover:bg-destructive/10" : "h-7 w-7 border-border p-0 text-foreground"}
                                 disabled={isCreatingCatalog}
                                 onClick={() => void createCatalogOption("categoria", r.Fila, "Categoria")}
                                 title="Agregar categoría"
@@ -953,7 +987,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                             categoriaValue || "-"
                           )}
                         </td>
-                        <td className={`px-2 py-1 ${r.flags.marca ? "text-red-600 font-semibold" : ""}`}>
+                        <td title={r.flags.marca ? getFieldErrorMessage(r.Mensaje, "marca") : undefined} className={`px-2 py-1 ${r.flags.marca ? "cursor-help font-semibold text-destructive" : ""}`}>
                           {isFixMode ? (
                             <div className="flex items-center gap-1">
                               <div className="min-w-[130px] flex-1">
@@ -961,7 +995,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                                   value={marcaValue || "__empty__"}
                                   onValueChange={(val) => updateRowField(r.Fila, "Marca", val === "__empty__" ? "" : (val ?? ""))}
                                 >
-                                  <SelectTrigger className={r.flags.marca ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
+                                  <SelectTrigger className={r.flags.marca ? "h-7 border-destructive/60 text-destructive" : "h-7 border-border text-foreground"}>
                                     <SelectValue placeholder="Seleccionar" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -975,7 +1009,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <Button
                                 type="button"
                                 variant="outline"
-                                className={r.flags.marca ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
+                                className={r.flags.marca ? "h-7 w-7 border-destructive/60 p-0 text-destructive hover:bg-destructive/10" : "h-7 w-7 border-border p-0 text-foreground"}
                                 disabled={isCreatingCatalog}
                                 onClick={() => void createCatalogOption("marca", r.Fila, "Marca")}
                                 title="Agregar marca"
@@ -987,7 +1021,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                             marcaValue || "-"
                           )}
                         </td>
-                        <td className={`px-2 py-1 ${r.flags.area ? "text-red-600 font-semibold" : ""}`}>
+                        <td title={r.flags.area ? getFieldErrorMessage(r.Mensaje, "area") : undefined} className={`px-2 py-1 ${r.flags.area ? "cursor-help font-semibold text-destructive" : ""}`}>
                           {isFixMode ? (
                             <div className="flex items-center gap-1">
                               <div className="min-w-[130px] flex-1">
@@ -995,7 +1029,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                                   value={areaValue || "__empty__"}
                                   onValueChange={(val) => updateRowField(r.Fila, "Area", val === "__empty__" ? "" : (val ?? ""))}
                                 >
-                                  <SelectTrigger className={r.flags.area ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
+                                  <SelectTrigger className={r.flags.area ? "h-7 border-destructive/60 text-destructive" : "h-7 border-border text-foreground"}>
                                     <SelectValue placeholder="Seleccionar" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1009,7 +1043,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <Button
                                 type="button"
                                 variant="outline"
-                                className={r.flags.area ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
+                                className={r.flags.area ? "h-7 w-7 border-destructive/60 p-0 text-destructive hover:bg-destructive/10" : "h-7 w-7 border-border p-0 text-foreground"}
                                 disabled={isCreatingCatalog}
                                 onClick={() => void createCatalogOption("area", r.Fila, "Area")}
                                 title="Agregar área"
@@ -1021,12 +1055,12 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                             areaValue || "-"
                           )}
                         </td>
-                        <td className={`px-2 py-1 ${r.flags.condicion ? "text-red-600 font-semibold" : ""}`}>
+                        <td title={r.flags.condicion ? getFieldErrorMessage(r.Mensaje, "condicion") : undefined} className={`px-2 py-1 ${r.flags.condicion ? "cursor-help font-semibold text-destructive" : ""}`}>
                           {isFixMode ? (
                             <div className="flex items-center gap-1">
                               <div className="min-w-[130px] flex-1">
                                 <Select value={condicionValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "Condicion", val === "__empty__" ? "" : (val ?? ""))}>
-                                  <SelectTrigger className={r.flags.condicion ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
+                                  <SelectTrigger className={r.flags.condicion ? "h-7 border-destructive/60 text-destructive" : "h-7 border-border text-foreground"}>
                                     <SelectValue placeholder="Seleccionar" />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1040,7 +1074,7 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                               <Button
                                 type="button"
                                 variant="outline"
-                                className={r.flags.condicion ? "h-7 w-7 p-0 border-red-300 text-red-700 hover:bg-red-50" : "h-7 w-7 p-0 border-slate-300 text-slate-700"}
+                                className={r.flags.condicion ? "h-7 w-7 border-destructive/60 p-0 text-destructive hover:bg-destructive/10" : "h-7 w-7 border-border p-0 text-foreground"}
                                 disabled={isCreatingCatalog}
                                 onClick={() => void createCatalogOption("condicion", r.Fila, "Condicion")}
                                 title="Agregar condición"
@@ -1052,10 +1086,10 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                             condicionValue || "-"
                           )}
                         </td>
-                        <td className={`px-2 py-1 ${r.flags.estado ? "text-red-600 font-semibold" : ""}`}>
+                        <td title={r.flags.estado ? getFieldErrorMessage(r.Mensaje, "estado") : undefined} className={`px-2 py-1 ${r.flags.estado ? "cursor-help font-semibold text-destructive" : ""}`}>
                           {isFixMode ? (
                             <Select value={estadoValue || "__empty__"} onValueChange={(val) => updateRowField(r.Fila, "EstadoBien", val === "__empty__" ? "" : (val ?? ""))}>
-                              <SelectTrigger className={r.flags.estado ? "h-7 border-red-300 text-red-700" : "h-7 border-slate-300 text-slate-700"}>
+                              <SelectTrigger className={r.flags.estado ? "h-7 border-destructive/60 text-destructive" : "h-7 border-border text-foreground"}>
                                 <SelectValue placeholder="Seleccionar" />
                               </SelectTrigger>
                               <SelectContent>
@@ -1069,17 +1103,6 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
                             estadoValue || "-"
                           )}
                         </td>
-                        <td className="px-2 py-1">
-                          <span
-                            className={
-                              r.Estado === "OK"
-                                ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700"
-                                : "rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700"
-                            }
-                          >
-                            {r.Estado}
-                          </span>
-                        </td>
                       </tr>
                       );
                     })}
@@ -1089,48 +1112,6 @@ export default function BienImportModal({ open, onOpenChange, onImported }: Bien
             </div>
           )}
 
-          {!!results.length && (
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-              <div className="border-b border-success/15 bg-success/5 px-4 py-3">
-                <p className="text-sm font-semibold text-success">Resultado de importación</p>
-              </div>
-              <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
-                <table className="w-full text-sm leading-tight">
-                  <thead className="bg-slate-100 text-slate-700 sticky top-0">
-                    <tr>
-                      <th className="text-left px-2 py-1.5">Fila</th>
-                      <th className="text-left px-2 py-1.5">Cód. Inventario</th>
-                      <th className="text-left px-2 py-1.5">Estado</th>
-                      <th className="text-left px-2 py-1.5">Mensaje</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resultRows.map((r) => (
-                      <tr
-                        key={`resultado-${r.Fila}`}
-                        className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60"
-                      >
-                        <td className="px-2 py-1">{r.Fila}</td>
-                        <td className="px-2 py-1">{r.CodigoInventario || "-"}</td>
-                        <td className="px-2 py-1">
-                          <span
-                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                              r.Estado === "OK"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {r.Estado}
-                          </span>
-                        </td>
-                        <td className="px-2 py-1">{r.Mensaje || "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>

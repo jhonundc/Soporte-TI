@@ -29,6 +29,7 @@ export type BajaRecord = {
   Fundamentacion?: string;
   IdUsuarioRegistro?: number;
   EstadoAprobacion?: string;
+  EvidenciaFirma?: string;
   FechaRegistro?: string;
   Validador?: string;
   JefeArea?: string;

@@ -26,6 +26,7 @@ export type ActaEntrega = {
   EstadoActa: string;
   Activo: boolean;
   FechaRegistro?: string;
+  EvidenciaFirma?: string;
   CantidadBienes?: number;
   Detalles?: ActaDetalle[];
 };

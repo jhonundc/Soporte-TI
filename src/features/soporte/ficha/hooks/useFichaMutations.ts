@@ -14,13 +14,19 @@ export function useFichaMutations(onSaveSuccess?: () => void) {
   };
 
   const saveMutation = useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       data,
       editingId,
+      evidence,
     }: {
       data: Record<string, unknown>;
       editingId?: number;
-    }) => fichaService.save(data, editingId),
+      evidence?: File | null;
+    }) => {
+      const saved = await fichaService.save(data, editingId);
+      if (editingId && evidence) await fichaService.saveEvidence(editingId, evidence);
+      return saved;
+    },
     onSuccess: () => {
       invalidate();
       onSaveSuccess?.();
@@ -29,6 +35,11 @@ export function useFichaMutations(onSaveSuccess?: () => void) {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => fichaService.remove(id),
+    onSuccess: invalidate,
+  });
+
+  const deleteEvidenceMutation = useMutation({
+    mutationFn: (id: number) => fichaService.removeEvidence(id),
     onSuccess: invalidate,
   });
 
@@ -42,5 +53,5 @@ export function useFichaMutations(onSaveSuccess?: () => void) {
     }
   };
 
-  return { saveMutation, deleteMutation, handleDelete };
+  return { saveMutation, deleteMutation, deleteEvidenceMutation, handleDelete };
 }

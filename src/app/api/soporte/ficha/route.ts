@@ -129,6 +129,7 @@ async function enrichFichas(baseRows: any[]) {
       FirmaAreaUsuario: row.FirmaAreaUsuario,
       IdUsuarioSoporte: row.IdUsuarioSoporte,
       FechaRegistro: row.FechaRegistro,
+      EvidenciaFirma: row.EvidenciaFirma || null,
       Bien: bien
         ? {
             IdBien: bien.IdBien,
@@ -540,7 +541,8 @@ export async function PATCH(request: Request) {
       FirmaSoporte: data.FirmaSoporte,
       FirmaJefeUnidad: data.FirmaJefeUnidad,
       FirmaAreaUsuario: data.FirmaAreaUsuario,
-      IdUsuarioSoporte: data.IdUsuarioSoporte,
+      // La edición conserva al usuario de soporte que registró originalmente la ficha.
+      IdUsuarioSoporte: existingFicha.IdUsuarioSoporte,
     };
 
     const pool = await getPool();
@@ -576,7 +578,10 @@ export async function PATCH(request: Request) {
 
     if (accion === "A") {
       await syncBienState(transaction, params);
+    }
 
+    // Solo las correcciones realizadas por Soporte vuelven a revisión administrativa.
+    if (accion === "A" && isSoporte) {
       await executeTransactionQuery(
         transaction,
         `UPDATE dbo.SoporteTecnico

@@ -26,11 +26,11 @@ export async function GET(request: Request) {
       if (!isAdminRole(session.role) && Number(acta.IdUsuarioEntrega) !== session.id) {
         return NextResponse.json({ error: "No tiene permisos para consultar esta acta." }, { status: 403 });
       }
-      const creator = await executeQuery<{ Nombres: string; Cargo?: string }>(
-        "SELECT Nombres, Cargo FROM dbo.Usuarios WHERE IdUsuario = @IdUsuario",
-        { IdUsuario: Number(acta.IdUsuarioEntrega) }
-      );
-      return NextResponse.json({ ...acta, NombreCreador: creator.recordset[0]?.Nombres || "-", CargoCreador: creator.recordset[0]?.Cargo || "", Detalles: recordsets?.[1] || [] });
+      return NextResponse.json({
+        ...acta,
+        NombreCreador: String(acta.UsuarioEntrega || "-"),
+        Detalles: recordsets?.[1] || [],
+      });
     }
     const accion = search.get("todas") === "1" ? "T" : "L";
     const result = await executeQuery("EXEC dbo.sp_ConsultaActaEntrega @Accion = @Accion", { Accion: accion });
@@ -39,16 +39,9 @@ export async function GET(request: Request) {
       : (result.recordset || []).filter(
           (acta: { IdUsuarioEntrega?: number }) => Number(acta.IdUsuarioEntrega) === session.id
         );
-    const usuarioIds = Array.from(new Set(visibleActas.map((acta: { IdUsuarioEntrega?: number }) => Number(acta.IdUsuarioEntrega)).filter(Number.isInteger)));
-    const usuarios = usuarioIds.length
-      ? await executeQuery<{ IdUsuario: number; Nombres: string }>(
-          `SELECT IdUsuario, Nombres FROM dbo.Usuarios WHERE IdUsuario IN (${usuarioIds.join(",")})`
-        )
-      : { recordset: [] };
-    const nombres = new Map(usuarios.recordset.map((usuario) => [usuario.IdUsuario, usuario.Nombres]));
-    const actas = visibleActas.map((acta: { IdUsuarioEntrega?: number }) => ({
+    const actas = visibleActas.map((acta: { UsuarioEntrega?: string }) => ({
       ...acta,
-      NombreCreador: nombres.get(Number(acta.IdUsuarioEntrega)) || "-",
+      NombreCreador: acta.UsuarioEntrega || "-",
     }));
     return NextResponse.json(actas);
   } catch (error) {

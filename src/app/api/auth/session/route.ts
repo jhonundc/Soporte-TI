@@ -10,10 +10,15 @@ export async function GET() {
     }
 
     const userResult = await executeQuery(
-      "SELECT IdUsuario, Usuario, Nombres, Activo FROM Usuarios WHERE IdUsuario = @Id",
-      { Id: session.id }
+      `EXEC dbo.sp_LoginUsuario
+        @Accion = @Accion,
+        @IdUsuario = @IdUsuario`,
+      {
+        Accion: "S",
+        IdUsuario: session.id,
+      }
     );
-    const user = userResult.recordset[0];
+    const user = userResult.recordset?.[0];
 
     if (!user || !user.Activo) {
       return NextResponse.json({ authenticated: false }, { status: 401 });

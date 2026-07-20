@@ -32,8 +32,8 @@ export function BajaPageView() {
     clearFilters,
   } = useBajaList();
 
-  const { saveMutation, handleDelete } = useBajaMutations();
-  const form = useBajaForm(catalogs, saveMutation);
+  const { saveMutation, deleteEvidenceMutation, handleDelete } = useBajaMutations();
+  const form = useBajaForm(catalogs, saveMutation, deleteEvidenceMutation);
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [viewingBaja, setViewingBaja] = useState<BajaRecord | null>(null);

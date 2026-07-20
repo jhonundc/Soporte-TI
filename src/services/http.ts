@@ -9,9 +9,10 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
+  const isFormData = init?.body instanceof FormData;
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...init?.headers },
     ...init,
+    headers: { ...(isFormData ? {} : { "Content-Type": "application/json" }), ...init?.headers },
   });
 
   const data = await res.json().catch(() => ({}));

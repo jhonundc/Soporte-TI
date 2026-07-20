@@ -710,20 +710,27 @@ export default function SoftwareImportModal({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsFixMode((v) => !v)}
+                  onClick={() => {
+                    if (isFixMode) {
+                      handleImport();
+                      return;
+                    }
+                    setIsFixMode(true);
+                  }}
+                  disabled={importMutation.isPending}
                   className={
                     isFixMode
-                      ? "h-7 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                      : "h-7 border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
+                      ? "h-7 border-amber-500/50 bg-amber-500/10 text-amber-600 hover:bg-amber-500/15 dark:text-amber-400"
+                      : "h-7 border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/15"
                   }
                 >
-                  {isFixMode ? "Finalizar edición" : "Arreglar errores"}
+                  {importMutation.isPending ? "Validando..." : isFixMode ? "Finalizar edición" : "Arreglar errores"}
                 </Button>
               )}
             </div>
             {isFixMode && hasErrorRows && (
-              <p className="mt-2 text-xs text-amber-700">
-                Modo edición activo: corrige los campos en rojo y luego pulsa &quot;Importar archivo&quot; nuevamente.
+              <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                Modo edición activo: corrige los campos en rojo y pulsa &quot;Finalizar edición&quot; para validarlos nuevamente.
               </p>
             )}
           </div>
@@ -735,7 +742,7 @@ export default function SoftwareImportModal({
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm leading-tight">
-                  <thead className="bg-slate-100 text-slate-700">
+                  <thead className="bg-muted text-muted-foreground">
                     <tr>
                       <th className="text-left px-2 py-1.5">Fila</th>
                       <th className="text-left px-2 py-1.5">Nombre</th>
@@ -751,7 +758,7 @@ export default function SoftwareImportModal({
                     {previewRows.map((row, idx) => (
                       <tr
                         key={`${row.Fila}-${row.NombreSoftware || row.IdSoftwareCatalogo || "sin-nombre"}-${idx}`}
-                        className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60"
+                        className="border-t border-border odd:bg-card even:bg-muted/35"
                       >
                         <td className="px-2 py-1">{row.Fila}</td>
                         <td className="px-2 py-1">{row.NombreSoftware || row.IdSoftwareCatalogo || "-"}</td>
@@ -778,12 +785,22 @@ export default function SoftwareImportModal({
                   <p className="text-xl font-bold">{uniqueInsertedCount}</p>
                 </div>
               </div>
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800 flex items-center gap-3">
+              <div className="flex items-center gap-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide">Errores</p>
                   <p className="text-xl font-bold">{uniqueErrorCount}</p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {!!results.length && !hasErrorRows && (
+            <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="h-5 w-5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold">Los datos están correctos</p>
+                <p className="text-xs">Las filas fueron validadas e importadas sin errores.</p>
               </div>
             </div>
           )}
@@ -795,7 +812,7 @@ export default function SoftwareImportModal({
               </div>
               <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
                 <table className="w-full text-sm leading-tight">
-                  <thead className="bg-slate-100 text-slate-700 sticky top-0">
+                  <thead className="sticky top-0 bg-muted text-muted-foreground">
                     <tr>
                       <th className="text-left px-2 py-1.5">Fila</th>
                       <th className="text-left px-2 py-1.5">Software</th>
@@ -807,7 +824,6 @@ export default function SoftwareImportModal({
                       <th className="text-left px-2 py-1.5">Versión</th>
                       <th className="text-left px-2 py-1.5">Cantidad</th>
                       <th className="text-left px-2 py-1.5">Uso / finalidad</th>
-                      <th className="text-left px-2 py-1.5">Resultado</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -824,9 +840,9 @@ export default function SoftwareImportModal({
                       const usoFinalidadValue = source?.UsoFinalidad || "";
 
                       return (
-                        <tr key={`error-${r.Fila}`} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
+                        <tr key={`error-${r.Fila}`} className="border-t border-border odd:bg-card even:bg-muted/35 text-foreground">
                           <td className="px-2 py-1">{r.Fila}</td>
-                          <td className={`px-2 py-1 ${r.flags.software ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.software ? getFieldErrorMessage(r.Mensaje, "software") : undefined} className={`px-2 py-1 ${r.flags.software ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[150px] flex-1">
@@ -857,7 +873,7 @@ export default function SoftwareImportModal({
                               softwareValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.tipoSoftware ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.tipoSoftware ? getFieldErrorMessage(r.Mensaje, "tipoSoftware") : undefined} className={`px-2 py-1 ${r.flags.tipoSoftware ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
@@ -888,7 +904,7 @@ export default function SoftwareImportModal({
                               tipoSoftwareValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.proveedor ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.proveedor ? getFieldErrorMessage(r.Mensaje, "proveedor") : undefined} className={`px-2 py-1 ${r.flags.proveedor ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
@@ -919,7 +935,7 @@ export default function SoftwareImportModal({
                               proveedorValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.tipoLicencia ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.tipoLicencia ? getFieldErrorMessage(r.Mensaje, "tipoLicencia") : undefined} className={`px-2 py-1 ${r.flags.tipoLicencia ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
@@ -950,7 +966,7 @@ export default function SoftwareImportModal({
                               tipoLicenciaValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.estadoLicencia ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.estadoLicencia ? getFieldErrorMessage(r.Mensaje, "estadoLicencia") : undefined} className={`px-2 py-1 ${r.flags.estadoLicencia ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
@@ -981,7 +997,7 @@ export default function SoftwareImportModal({
                               estadoLicenciaValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.tipoAsignacion ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.tipoAsignacion ? getFieldErrorMessage(r.Mensaje, "tipoAsignacion") : undefined} className={`px-2 py-1 ${r.flags.tipoAsignacion ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <div className="flex items-center gap-1">
                                 <div className="min-w-[130px] flex-1">
@@ -1012,7 +1028,7 @@ export default function SoftwareImportModal({
                               tipoAsignacionValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.version ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.version ? getFieldErrorMessage(r.Mensaje, "version") : undefined} className={`px-2 py-1 ${r.flags.version ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <Input
                                 value={versionValue}
@@ -1023,7 +1039,7 @@ export default function SoftwareImportModal({
                               versionValue || "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.cantidad ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.cantidad ? getFieldErrorMessage(r.Mensaje, "cantidad") : undefined} className={`px-2 py-1 ${r.flags.cantidad ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <Input
                                 type="number"
@@ -1035,7 +1051,7 @@ export default function SoftwareImportModal({
                               cantidadValue ?? "-"
                             )}
                           </td>
-                          <td className={`px-2 py-1 ${r.flags.usoFinalidad ? "text-red-600 font-semibold" : ""}`}>
+                          <td title={r.flags.usoFinalidad ? getFieldErrorMessage(r.Mensaje, "usoFinalidad") : undefined} className={`px-2 py-1 ${r.flags.usoFinalidad ? "cursor-help font-semibold text-destructive" : ""}`}>
                             {isFixMode ? (
                               <Input
                                 value={usoFinalidadValue}
@@ -1047,11 +1063,6 @@ export default function SoftwareImportModal({
                               usoFinalidadValue || "-"
                             )}
                           </td>
-                          <td className="px-2 py-1">
-                            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                              {r.Estado}
-                            </span>
-                          </td>
                         </tr>
                       );
                     })}
@@ -1061,50 +1072,6 @@ export default function SoftwareImportModal({
             </div>
           )}
 
-          {!!results.length && (
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-              <div className="border-b border-success/15 bg-success/5 px-4 py-3">
-                <p className="text-sm font-semibold text-success">Resultado de importación</p>
-              </div>
-              <div className="overflow-x-auto max-h-[380px] overflow-y-auto">
-                <table className="w-full text-sm leading-tight">
-                  <thead className="bg-slate-100 text-slate-700 sticky top-0">
-                    <tr>
-                      <th className="text-left px-2 py-1.5">Fila</th>
-                      <th className="text-left px-2 py-1.5">Nombre software</th>
-                      <th className="text-left px-2 py-1.5">Estado</th>
-                      <th className="text-left px-2 py-1.5">Mensaje</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resultRows.map((r) => (
-                      <tr
-                        key={`resultado-${r.Fila}`}
-                        className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60"
-                      >
-                        <td className="px-2 py-1">{r.Fila}</td>
-                        <td className={`px-2 py-1 ${r.flags.software ? "font-semibold text-red-600" : ""}`}>
-                          {r.NombreSoftware || "-"}
-                        </td>
-                        <td className="px-2 py-1">
-                          <span
-                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                              r.Estado === "OK"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {r.Estado}
-                          </span>
-                        </td>
-                        <td className="px-2 py-1">{r.Mensaje || "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -1135,6 +1102,15 @@ function getErrorFlags(message: string): ResultErrorFlags {
     cantidad: msg.includes("cantidad de licencias debe ser mayor a cero"),
     usoFinalidad: msg.includes("usofinalidad excede 255 caracteres"),
   };
+}
+
+function getFieldErrorMessage(message: string, field: keyof ResultErrorFlags): string | undefined {
+  if (!message) return undefined;
+  const matchingMessages = message
+    .split(" | ")
+    .map((item) => item.trim())
+    .filter((item) => item && getErrorFlags(item)[field]);
+  return matchingMessages.length ? matchingMessages.join(" · ") : message;
 }
 
 async function fetchImportCatalogs(): Promise<ImportCatalogs> {

@@ -26,6 +26,7 @@ type CatalogData = {
 export function useFichaForm(
   catalogs: CatalogData,
   saveMutation: ReturnType<typeof useFichaMutations>["saveMutation"],
+  deleteEvidenceMutation: ReturnType<typeof useFichaMutations>["deleteEvidenceMutation"],
   onOpenChange?: (open: boolean) => void
 ) {
   const { bienes, estados, sessionData } = catalogs;
@@ -41,6 +42,7 @@ export function useFichaForm(
   const [tipoBien, setTipoBien] = useState("");
   const [condicionBien, setCondicionBien] = useState("");
   const [estadoBienOptions, setEstadoBienOptions] = useState<EstadoRef[]>([]);
+  const [evidence, setEvidence] = useState<File | null>(null);
 
   const {
     register,
@@ -128,6 +130,7 @@ export function useFichaForm(
     setEditingFicha(null);
     setTipoBien("");
     setCondicionBien("");
+    setEvidence(null);
     setOpen(false);
   };
 
@@ -156,10 +159,20 @@ export function useFichaForm(
     payload.FirmaJefeUnidad = "";
     payload.FirmaAreaUsuario = "";
 
+    if (evidence && !["image/jpeg", "image/png", "image/webp"].includes(evidence.type)) {
+      notify.warning("La evidencia debe ser una imagen JPG, PNG o WEBP.");
+      return;
+    }
+    if (evidence && evidence.size > 5 * 1024 * 1024) {
+      notify.warning("La imagen de evidencia no puede superar los 5 MB.");
+      return;
+    }
+
     try {
       await saveMutation.mutateAsync({
         data: payload,
         editingId: editingFicha?.IdSoporte,
+        evidence: editingFicha ? evidence : null,
       });
       closeForm();
     } catch (e: unknown) {
@@ -168,6 +181,7 @@ export function useFichaForm(
   };
 
   const handleEdit = (ficha: FichaSoporteRecord) => {
+    setEvidence(null);
     setEditingFicha(ficha);
 
     Object.keys(ficha).forEach((key) => {
@@ -193,6 +207,7 @@ export function useFichaForm(
   const handleNuevo = () => {
     reset();
     setEditingFicha(null);
+    setEvidence(null);
     setTipoBien("");
     setCondicionBien("");
 
@@ -216,6 +231,19 @@ export function useFichaForm(
     setLookupSearch("");
   };
 
+  const handleDeleteEvidence = async () => {
+    if (!editingFicha?.EvidenciaFirma) return;
+    if (!window.confirm("¿Desea eliminar la imagen de evidencia de esta ficha?")) return;
+    try {
+      await deleteEvidenceMutation.mutateAsync(editingFicha.IdSoporte);
+      setEditingFicha((current) => current ? { ...current, EvidenciaFirma: undefined } : current);
+      setEvidence(null);
+      notify.success("La imagen de evidencia fue eliminada.");
+    } catch (error: unknown) {
+      notify.fromError(error, "No se pudo eliminar la imagen de evidencia.");
+    }
+  };
+
   return {
     open,
     setOpen,
@@ -229,6 +257,8 @@ export function useFichaForm(
     condicionBien,
     setCondicionBien,
     estadoBienOptions,
+    evidence,
+    setEvidence,
     register,
     handleSubmit,
     setValue,
@@ -239,8 +269,10 @@ export function useFichaForm(
     onSubmit,
     handleEdit,
     handleNuevo,
+    handleDeleteEvidence,
     closeForm,
     selectBien,
     savePending: saveMutation.isPending,
+    deleteEvidencePending: deleteEvidenceMutation.isPending,
   };
 }

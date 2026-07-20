@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -233,6 +234,43 @@ export function FichaViewDialog({ open, onOpenChange, ficha }: FichaViewDialogPr
                     <div className="border border-t-0 p-3 rounded-b min-h-[50px] text-xs whitespace-pre-wrap">
                       {ficha.Recomendacion || "Ninguna"}
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="rounded-t bg-slate-800 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-white">
+                    VIII. Evidencia de firma
+                  </h3>
+                  <div className="rounded-b border border-t-0 p-4">
+                    {ficha.EvidenciaFirma ? (
+                      <div className="space-y-3">
+                        <a
+                          href={ficha.EvidenciaFirma}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block overflow-hidden rounded-xl border border-border bg-white p-2 shadow-sm transition hover:border-primary/40"
+                        >
+                          <Image
+                            src={ficha.EvidenciaFirma}
+                            alt={`Evidencia de firma de la ficha ${ficha.NumeroFicha || "de soporte"}`}
+                            width={1200}
+                            height={800}
+                            unoptimized
+                            className="mx-auto max-h-[420px] w-auto rounded-lg object-contain"
+                          />
+                        </a>
+                        <a
+                          href={ficha.EvidenciaFirma}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex text-xs font-semibold text-primary underline-offset-4 hover:underline print:hidden"
+                        >
+                          Abrir imagen en tamaño completo
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Esta ficha no tiene una imagen de evidencia guardada.</p>
+                    )}
                   </div>
                 </div>
 

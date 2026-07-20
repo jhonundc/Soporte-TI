@@ -15,6 +15,7 @@ import { actaEntregaService } from "@/services/acta-entrega.service";
 import { apiFetch } from "@/services/http";
 import type { ActaEntrega, ActaPayload } from "./types";
 import { ActaEntregaPrintSection } from "./ActaEntregaPrintSection";
+import { ActaEntregaDetailDialog } from "./ActaEntregaDetailDialog";
 
 type Bien = { IdBien: number; CodigoInventario?: string; CodigoPatrimonial?: string; Descripcion?: string; NumeroSerie?: string };
 type Area = { IdArea: number; NombreArea: string };
@@ -36,10 +37,13 @@ export function ActaEntregaPageView({ centroNotificaciones = false }: { centroNo
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [detail, setDetail] = useState<ActaEntrega | null>(null);
+  const [detailView, setDetailView] = useState<ActaEntrega | null>(null);
   const [form, setForm] = useState<ActaPayload>(initial());
   const [bienId, setBienId] = useState("");
   const [printOpen, setPrintOpen] = useState(false);
   const [printActa, setPrintActa] = useState<ActaEntrega | null>(null);
+  const [evidence, setEvidence] = useState<File | null>(null);
+  const [evidencePending, setEvidencePending] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,7 +73,7 @@ export function ActaEntregaPageView({ centroNotificaciones = false }: { centroNo
   const pendingCount = actas.filter((acta) => acta.Activo && acta.EstadoActa === "BORRADOR").length;
 
   const openDetail = async (id: number) => {
-    try { setDetail(await actaEntregaService.get(id)); } catch (error) { toast.error(error instanceof Error ? error.message : "No se pudo consultar el acta"); }
+    try { setDetailView(await actaEntregaService.get(id)); } catch (error) { toast.error(error instanceof Error ? error.message : "No se pudo consultar el acta"); }
   };
   const openPrint = async (id: number) => {
     try {
@@ -80,12 +84,13 @@ export function ActaEntregaPageView({ centroNotificaciones = false }: { centroNo
     }
   };
   const openEdit = async (id: number) => {
-    try { const value = await actaEntregaService.get(id); setForm({ ...value, FechaEntrega: value.FechaEntrega.slice(0, 10), Detalles: value.Detalles || [] }); setFormOpen(true); }
+    try { const value = await actaEntregaService.get(id); setEvidence(null); setForm({ ...value, FechaEntrega: value.FechaEntrega.slice(0, 10), Detalles: value.Detalles || [] }); setFormOpen(true); }
     catch (error) { toast.error(error instanceof Error ? error.message : "No se pudo consultar el acta"); }
   };
   const openNew = async () => {
     try {
       const { NumeroActa } = await actaEntregaService.nextNumber();
+      setEvidence(null);
       setForm({ ...initial(), NumeroActa });
       setFormOpen(true);
     } catch (error) {
@@ -97,8 +102,17 @@ export function ActaEntregaPageView({ centroNotificaciones = false }: { centroNo
     setForm((old) => ({ ...old, Detalles: [...old.Detalles, { IdBien: id, ObservacionDetalle: "" }] })); setBienId("");
   };
   const save = async () => {
-    try { const result = form.IdActaEntrega ? await actaEntregaService.update(form) : await actaEntregaService.create(form); toast.success(result.Mensaje); setFormOpen(false); setForm(initial()); await load(); }
+    if (evidence && !["image/jpeg", "image/png", "image/webp"].includes(evidence.type)) return toast.warning("La evidencia debe ser una imagen JPG, PNG o WEBP.");
+    if (evidence && evidence.size > 5 * 1024 * 1024) return toast.warning("La imagen de evidencia no puede superar los 5 MB.");
+    try { const result = form.IdActaEntrega ? await actaEntregaService.update(form) : await actaEntregaService.create(form); if (form.IdActaEntrega && evidence) await actaEntregaService.saveEvidence(form.IdActaEntrega, evidence); toast.success(result.Mensaje); setFormOpen(false); setForm(initial()); setEvidence(null); await load(); }
     catch (error) { toast.error(error instanceof Error ? error.message : "No se pudo guardar"); }
+  };
+  const deleteEvidence = async () => {
+    if (!form.IdActaEntrega || !form.EvidenciaFirma || !window.confirm("¿Eliminar la imagen firmada de esta acta?")) return;
+    setEvidencePending(true);
+    try { await actaEntregaService.removeEvidence(form.IdActaEntrega); setForm({ ...form, EvidenciaFirma: undefined }); setEvidence(null); toast.success("La imagen firmada fue eliminada."); await load(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "No se pudo eliminar la imagen"); }
+    finally { setEvidencePending(false); }
   };
   const action = async (acta: ActaEntrega, accion: "E" | "V" | "N" | "T") => {
     if (accion === "N" && !window.confirm(`¿Anular el acta ${acta.NumeroActa}?`)) return;
@@ -124,10 +138,12 @@ export function ActaEntregaPageView({ centroNotificaciones = false }: { centroNo
     <Dialog open={formOpen} onOpenChange={setFormOpen}><DialogContent className="max-h-[92vh] gap-0 overflow-hidden rounded-2xl border border-border p-0 sm:max-w-4xl"><DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5"><div className="flex items-center gap-3"><span className="rounded-xl bg-primary/10 p-2.5 text-primary"><FileText className="size-5" /></span><div><DialogTitle className="text-xl">{form.IdActaEntrega ? "Editar acta" : "Nueva acta de entrega"}</DialogTitle><DialogDescription className="mt-1">Complete los datos del receptor y agregue los bienes entregados.</DialogDescription></div></div></DialogHeader><div className="grid max-h-[calc(92vh-10rem)] gap-5 overflow-y-auto px-6 py-5 sm:grid-cols-2 [&_label]:mb-2 [&_label]:block [&_label]:text-sm [&_label]:font-semibold">
       <div><Label>Número de acta</Label><Input value={form.NumeroActa} readOnly disabled className="font-medium" /></div><div><Label>Fecha de entrega *</Label><Input type="date" value={form.FechaEntrega} onChange={(e) => setForm({ ...form, FechaEntrega: e.target.value })} /></div><div><Label>Nombre del receptor *</Label><Input value={form.NombreReceptor} onChange={(e) => setForm({ ...form, NombreReceptor: e.target.value })} /></div><div><Label>Cargo</Label><Input value={form.CargoReceptor || ""} onChange={(e) => setForm({ ...form, CargoReceptor: e.target.value })} /></div><div><Label>Área receptora</Label><select className="h-10 w-full rounded-md border bg-background px-3" value={form.IdAreaReceptor || ""} onChange={(e) => setForm({ ...form, IdAreaReceptor: e.target.value ? Number(e.target.value) : undefined })}><option value="">Seleccione</option>{areas.map((a) => <option key={a.IdArea} value={a.IdArea}>{a.NombreArea}</option>)}</select></div><div><Label>Servicio / ambiente</Label><Input value={form.ServicioArea || ""} onChange={(e) => setForm({ ...form, ServicioArea: e.target.value })} /></div><div className="sm:col-span-2"><Label>Observaciones</Label><Textarea value={form.Observaciones || ""} onChange={(e) => setForm({ ...form, Observaciones: e.target.value })} /></div>
       <div className="space-y-4 rounded-2xl border border-primary/15 bg-primary/[0.025] p-5 sm:col-span-2"><div className="flex items-center justify-between"><div><Label>Bienes incluidos *</Label><p className="text-xs text-muted-foreground">Busca por código patrimonial y agrega los bienes que serán entregados.</p></div><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">{form.Detalles.length} bien{form.Detalles.length === 1 ? "" : "es"}</span></div><div className="flex gap-2"><SearchableSelect className="min-w-0 flex-1" value={bienId} onValueChange={setBienId} placeholder="Escriba el código patrimonial para buscar..." emptyMessage="No se encontró un bien con ese código" options={bienes.filter((b) => !form.Detalles.some((d) => d.IdBien === b.IdBien)).map((b) => ({ value: String(b.IdBien), label: `${b.CodigoPatrimonial || "Sin código patrimonial"} — ${b.Descripcion || "Sin descripción"}${b.CodigoInventario ? ` · Inv. ${b.CodigoInventario}` : ""}` }))} /><Button type="button" className="rounded-lg" variant="outline" onClick={addBien} disabled={!bienId}>Agregar</Button></div>{form.Detalles.length === 0 ? <div className="rounded-xl border border-dashed border-border bg-card/60 px-4 py-8 text-center"><PackageCheck className="mx-auto mb-2 size-7 text-muted-foreground/50" /><p className="text-sm text-muted-foreground">Aún no se agregaron bienes al acta.</p></div> : form.Detalles.map((d, index) => { const b = bienes.find((x) => x.IdBien === d.IdBien); return <div key={d.IdBien} className="grid items-center gap-3 rounded-xl border border-border bg-card p-3.5 shadow-sm sm:grid-cols-[1fr_1fr_auto]"><div className="text-sm"><b className="text-primary">{b?.CodigoPatrimonial || b?.CodigoInventario || `Bien ${d.IdBien}`}</b><div className="mt-0.5 text-muted-foreground">{b?.Descripcion || d.Descripcion}</div></div><Input className="bg-background" placeholder="Observación del bien" value={d.ObservacionDetalle || ""} onChange={(e) => setForm({ ...form, Detalles: form.Detalles.map((x, i) => i === index ? { ...x, ObservacionDetalle: e.target.value } : x) })} /><Button size="icon" variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive" title="Quitar bien" onClick={() => setForm({ ...form, Detalles: form.Detalles.filter((_, i) => i !== index) })}><Trash2 className="size-4" /></Button></div>; })}</div>
+      {form.IdActaEntrega ? <div className="rounded-2xl border border-primary/15 bg-primary/[0.025] p-5 sm:col-span-2"><Label>Imagen firmada</Label><p className="mb-3 text-xs text-muted-foreground">JPG, PNG o WEBP, hasta 5 MB. Solo se puede adjuntar al editar.</p><Input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setEvidence(event.target.files?.[0] ?? null)} className="cursor-pointer bg-background" />{evidence ? <p className="mt-2 text-xs font-medium text-primary">Seleccionada: {evidence.name}</p> : null}{form.EvidenciaFirma ? <Button type="button" size="sm" variant="destructive" className="mt-4 gap-2" disabled={evidencePending} onClick={deleteEvidence}><Trash2 className="size-4" />{evidencePending ? "Eliminando..." : "Eliminar imagen actual"}</Button> : null}</div> : null}
     </div><DialogFooter className="border-t border-border bg-muted/20 px-6 py-4"><Button className="rounded-lg" variant="outline" onClick={() => setFormOpen(false)}>Cancelar</Button><Button className="rounded-lg px-6" onClick={save}>Guardar acta</Button></DialogFooter></DialogContent></Dialog>
 
     <ActaEntregaPrintSection open={printOpen} onOpenChange={setPrintOpen} acta={printActa} />
 
     <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)}><DialogContent className="max-h-[90vh] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-3xl"><DialogHeader className="border-b border-primary/10 bg-gradient-to-r from-primary/10 via-primary/5 to-card px-6 py-5"><div className="flex items-center justify-between gap-3"><div><p className="mb-1 text-xs font-bold uppercase tracking-[0.14em] text-primary">Documento de entrega</p><DialogTitle className="text-xl">Acta N.º {detail?.NumeroActa}</DialogTitle><DialogDescription className="mt-1">Detalle completo del registro y sus bienes asociados.</DialogDescription></div>{detail ? <Badge variant="outline" className={`rounded-full px-3 py-1.5 font-bold ${statusClass(detail.EstadoActa)}`}>{detail.EstadoActa}</Badge> : null}</div></DialogHeader>{detail ? <div className="max-h-[calc(90vh-11rem)] space-y-5 overflow-y-auto px-6 py-5 text-sm"><section><h3 className="mb-3 inline-flex rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-primary">Información general</h3><div className="grid gap-3 sm:grid-cols-2 [&>p]:rounded-xl [&>p]:bg-primary/[0.045] [&>p]:px-4 [&>p]:py-3.5 [&>p>b]:mb-1.5 [&>p>b]:block [&>p>b]:text-[11px] [&>p>b]:uppercase [&>p>b]:tracking-wide [&>p>b]:text-primary"><p><b>Fecha de entrega</b>{new Date(detail.FechaEntrega).toLocaleString("es-PE")}</p><p><b>Creado por</b>{detail.NombreCreador || "-"}</p><p><b>Receptor</b>{detail.NombreReceptor}</p><p><b>Cargo</b>{detail.CargoReceptor || "-"}</p><p><b>Área receptora</b>{detail.AreaReceptor || "-"}</p><p><b>Servicio / ambiente</b>{detail.ServicioArea || "-"}</p></div></section><section><h3 className="mb-2 inline-flex rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-primary">Observaciones</h3><p className="rounded-xl bg-primary/[0.045] p-4 leading-6">{detail.Observaciones || "Sin observaciones"}</p></section><section><div className="mb-3 flex items-center justify-between"><h3 className="inline-flex rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-primary">Bienes entregados</h3><span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">{detail.Detalles?.length || 0}</span></div>{detail.Detalles?.map((d) => <div key={d.IdActaEntregaDetalle || d.IdBien} className="mb-2 rounded-xl border border-primary/10 bg-primary/[0.025] p-4 shadow-sm"><b className="text-primary">{d.CodigoPatrimonial || d.CodigoInventario || `Bien ${d.IdBien}`}</b><span className="text-muted-foreground"> — {d.Descripcion}</span><div className="mt-1 text-xs text-muted-foreground">Serie: {d.NumeroSerie || "-"} · {d.Marca || ""} {d.Modelo || ""}</div>{d.ObservacionDetalle ? <p className="mt-3 rounded-lg bg-primary/[0.05] px-3 py-2 text-sm">{d.ObservacionDetalle}</p> : null}</div>)}</section></div> : null}<DialogFooter className="border-t border-border bg-muted/20 px-6 py-4"><Button className="rounded-lg" variant="outline" onClick={() => setDetail(null)}>Cerrar</Button></DialogFooter></DialogContent></Dialog>
+    <ActaEntregaDetailDialog acta={detailView} onClose={() => setDetailView(null)} statusClass={statusClass} />
   </main>;
 }
