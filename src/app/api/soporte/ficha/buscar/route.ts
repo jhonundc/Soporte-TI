@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
 import { fichaBuscarQuerySchema, parseSearchParams } from "@/lib/validations";
+import { authSession, guardFailed } from "@/lib/auth/guards";
 
 // Helper para mapear una fila plana de la base de datos al formato relacional estructurado
 function mapFichaRow(row: any) {
