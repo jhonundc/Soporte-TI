@@ -111,14 +111,23 @@ export function AppShell({ children }: AppShellProps) {
     (notification) => !seenNotificationIds.includes(notification.IdNotificacion)
   );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const storedTheme = window.localStorage.getItem("inventario-ti-theme");
-    return storedTheme
-      ? storedTheme === "dark"
-      : window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
+  // Keep the server HTML and the client's first render identical. Browser-only
+  // theme preferences are loaded after hydration to avoid a React mismatch.
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const displayName = sessionData?.user?.name || sessionData?.user?.username || "R";
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const storedTheme = window.localStorage.getItem("inventario-ti-theme");
+      setIsDarkMode(
+        storedTheme
+          ? storedTheme === "dark"
+          : window.matchMedia("(prefers-color-scheme: dark)").matches
+      );
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
